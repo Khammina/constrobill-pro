@@ -194,6 +194,27 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
 #prev-viewport::-webkit-scrollbar-track{background:#3a3f50;}
 #prev-viewport::-webkit-scrollbar-thumb{background:#666;border-radius:4px;}
 #prev-viewport::-webkit-scrollbar-thumb:hover{background:#888;}
+/* ─ INVOICE PROJECT TREE ─ */
+.proj-group{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;margin-bottom:6px;overflow:hidden;}
+.proj-header{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;transition:background .15s;user-select:none;}
+.proj-header:hover{background:var(--sf3);}
+.proj-header.open{background:var(--sf3);}
+.proj-arrow{font-size:10px;color:var(--tx3);transition:transform .2s;flex-shrink:0;}
+.proj-arrow.open{transform:rotate(90deg);}
+.proj-info{flex:1;min-width:0;}
+.proj-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.proj-meta{font-size:10px;color:var(--tx3);}
+.proj-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(79,124,255,.15);color:var(--ac);font-weight:700;flex-shrink:0;}
+.proj-invoices{border-top:1px solid var(--bd);display:none;}
+.proj-invoices.open{display:block;}
+.inv-tree-item{display:flex;align-items:center;gap:7px;padding:7px 10px 7px 18px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background .15s;}
+.inv-tree-item:last-child{border-bottom:none;}
+.inv-tree-item:hover{background:rgba(79,124,255,.06);}
+.inv-tree-item.active{background:rgba(79,124,255,.12);border-left:2px solid var(--ac);padding-left:16px;}
+.inv-tree-num{font-family:var(--M);font-size:11px;color:var(--ac);min-width:74px;flex-shrink:0;}
+.inv-tree-info{flex:1;min-width:0;}
+.inv-tree-actions{display:flex;gap:3px;opacity:0;transition:opacity .15s;flex-shrink:0;}
+.inv-tree-item:hover .inv-tree-actions,.inv-tree-item.active .inv-tree-actions{opacity:1;}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
 .theme-swatch{border-radius:9px;padding:10px 8px;cursor:pointer;border:2px solid transparent;transition:all .2s;text-align:center;}
@@ -638,15 +659,39 @@ function showSyncStatus(status){
 <!-- ═══ INVOICE PAGE ═══ -->
 <div class="page" id="page-invoice">
   <div class="ph">
-    <div><div class="pt">Invoice</div><div class="ps">Progress billing based on BOQ</div></div>
-    <button class="btn btn-p" onclick="openNewInv()">+ New Invoice</button>
-  </div>
-  <div style="display:grid;grid-template-columns:280px 1fr;gap:12px">
-    <div>
-      <div class="ct" style="padding:0 0 5px">Saved Invoices</div>
-      <div class="inv-list" id="inv-list"><div class="es"><div class="ic">🧾</div><div>No invoices yet</div></div></div>
+    <div><div class="pt">Invoice</div><div class="ps">Progress billing based on BOQ — organised by project</div></div>
+    <div class="ar">
+      <button class="btn btn-o btn-sm" onclick="openInvHistory()" title="View full invoice history">📂 History</button>
+      <button class="btn btn-p" onclick="openNewInv()">+ New Invoice</button>
     </div>
-    <div id="inv-detail"><div class="es" style="padding:70px 0"><div class="ic">👈</div><div>Select or create an invoice</div></div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:12px">
+    <!-- LEFT: Project tree -->
+    <div>
+      <!-- Search / filter -->
+      <div style="margin-bottom:8px;position:relative">
+        <input id="inv-search" placeholder="🔍 Search project or invoice…" style="padding-left:10px;font-size:12px" oninput="renderInvList()"/>
+      </div>
+      <!-- Project accordion list -->
+      <div id="inv-list"><div class="es"><div class="ic">🧾</div><div>No invoices yet</div></div></div>
+    </div>
+    <!-- RIGHT: Invoice detail -->
+    <div id="inv-detail"><div class="es" style="padding:70px 0"><div class="ic">👈</div><div>Select a project and invoice</div></div></div>
+  </div>
+</div>
+
+<!-- INVOICE HISTORY MODAL -->
+<div class="mb" id="inv-hist-modal">
+  <div class="modal" style="max-width:620px">
+    <h3>📂 Invoice History</h3>
+    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="inv-hist-search" placeholder="🔍 Search…" style="flex:1;font-size:12px;min-width:140px" oninput="renderInvHistoryModal()"/>
+      <select id="inv-hist-filter" style="width:120px;font-size:12px" onchange="renderInvHistoryModal()">
+        <option value="all">All Projects</option>
+      </select>
+    </div>
+    <div id="inv-hist-list" style="max-height:420px;overflow-y:auto"></div>
+    <div class="ma"><button class="btn btn-o" onclick="closeModal('inv-hist-modal')">Close</button></div>
   </div>
 </div>
 
@@ -1896,23 +1941,204 @@ function createInv(){
 }
 function renderInvList(){
   const el=document.getElementById('inv-list');
-  if(!ST.invoices.length){el.innerHTML='<div class="es"><div class="ic">🧾</div><div>No invoices yet</div></div>';return;}
-  el.innerHTML='';
+  if(!el)return;
+  const q=(document.getElementById('inv-search')?.value||'').toLowerCase().trim();
+
+  if(!ST.invoices.length){
+    el.innerHTML='<div class="es"><div class="ic">🧾</div><div>No invoices yet.<br>Click + New Invoice to start.</div></div>';
+    return;
+  }
+
+  // Group invoices by project
+  const projects={};
   ST.invoices.forEach(inv=>{
-    const aP=inv.items.length?(inv.items.reduce((a,i)=>a+(i.pct||0),0)/inv.items.length).toFixed(1):0;
-    const tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);const vat=tU*(inv.vatRate||10)/100;
-    const d=document.createElement('div');
-    d.className='inv-item'+(inv.id===activeInvId?' active':'');
-    d.onclick=()=>openInv(inv.id);
-    d.innerHTML=`<div class="inv-num">${inv.num}</div>
-      <div class="inv-desc">
-        <div style="font-weight:600;font-size:12px">${inv.period||'Progress Invoice'}</div>
-        <div style="font-size:10px;color:var(--tx3)">${inv.date} · ${inv.boqNum}</div>
-        <div style="font-size:11px;font-family:var(--M);color:var(--gr)">${fa(cv(tU+vat))} <span style="color:var(--tx3);font-size:10px">incl.VAT</span></div>
-        <div class="pbar"><div class="pfil" style="width:${Math.min(aP,100)}%"></div></div>
-      </div>`;
-    el.appendChild(d);
+    const key=inv.boqNum||'NO-BOQ';
+    const label=inv.project||inv.client||inv.boqNum||'Unknown Project';
+    if(!projects[key]) projects[key]={label,boqNum:inv.boqNum,client:inv.client||'',invoices:[]};
+    projects[key].invoices.push(inv);
   });
+
+  // Filter
+  const filteredProjs=Object.entries(projects).filter(([k,p])=>{
+    if(!q) return true;
+    return p.label.toLowerCase().includes(q)||p.boqNum.toLowerCase().includes(q)||
+      p.invoices.some(i=>(i.num+i.period+i.client).toLowerCase().includes(q));
+  });
+
+  if(!filteredProjs.length){
+    el.innerHTML='<div class="es"><div style="font-size:20px;margin-bottom:6px">🔍</div><div>No matching invoices</div></div>';
+    return;
+  }
+
+  el.innerHTML='';
+  filteredProjs.forEach(([key,proj])=>{
+    const isOpen=proj.invoices.some(i=>i.id===activeInvId)||q;
+    const totalUSD=proj.invoices.reduce((a,inv)=>a+inv.items.reduce((b,i)=>b+(i.amt||0),0),0);
+    const avgPct=proj.invoices.length?
+      (proj.invoices.reduce((a,inv)=>a+(inv.items.length?inv.items.reduce((b,i)=>b+(i.cumPct||0),0)/inv.items.length:0),0)/proj.invoices.length):0;
+
+    const grp=document.createElement('div');
+    grp.className='proj-group';
+    grp.innerHTML=`
+      <div class="proj-header ${isOpen?'open':''}" onclick="toggleProjGroup(this)">
+        <div class="proj-arrow ${isOpen?'open':''}">▶</div>
+        <div style="font-size:15px;flex-shrink:0">📁</div>
+        <div class="proj-info">
+          <div class="proj-name" title="${esc(proj.label)}">${esc(proj.label)}</div>
+          <div class="proj-meta">${esc(proj.boqNum)} · ${esc(proj.client||'No client')} · ${proj.invoices.length} invoice${proj.invoices.length!==1?'s':''}</div>
+          <div style="height:3px;background:var(--sf3);border-radius:2px;margin-top:4px;overflow:hidden">
+            <div style="height:100%;width:${Math.min(avgPct,100).toFixed(1)}%;background:linear-gradient(90deg,var(--ac),var(--ac2));border-radius:2px"></div>
+          </div>
+        </div>
+        <div class="proj-badge">${avgPct.toFixed(0)}%</div>
+      </div>
+      <div class="proj-invoices ${isOpen?'open':''}" id="proj-inv-${key.replace(/[^a-zA-Z0-9]/g,'_')}"></div>`;
+    el.appendChild(grp);
+
+    const invContainer=grp.querySelector('.proj-invoices');
+    proj.invoices.slice().reverse().forEach(inv=>{
+      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
+      const vat=sub*(inv.vatRate||10)/100;
+      const tot=sub+vat;
+      const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
+      const isActive=inv.id===activeInvId;
+      const item=document.createElement('div');
+      item.className='inv-tree-item'+(isActive?' active':'');
+      item.innerHTML=`
+        <div class="inv-tree-num">${esc(inv.num)}</div>
+        <div class="inv-tree-info" onclick="openInv('${inv.id}')">
+          <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">${esc(inv.period||'Progress Invoice')}</div>
+          <div style="font-size:10px;color:var(--tx3)">${inv.date} · ${fa(cv(tot))}</div>
+          <div style="height:2px;background:var(--sf3);border-radius:1px;margin-top:3px;overflow:hidden">
+            <div style="height:100%;width:${Math.min(pct,100).toFixed(1)}%;background:var(--gr);border-radius:1px"></div>
+          </div>
+        </div>
+        <div class="inv-tree-actions">
+          <button class="btn btn-d" style="padding:2px 6px;font-size:10px" onclick="deleteInv('${inv.id}');event.stopPropagation()" title="Delete invoice">✕</button>
+        </div>`;
+      item.querySelector('.inv-tree-info').addEventListener('click',()=>openInv(inv.id));
+      invContainer.appendChild(item);
+    });
+  });
+}
+
+function toggleProjGroup(header){
+  const arrow=header.querySelector('.proj-arrow');
+  const panel=header.nextElementSibling;
+  const isOpen=panel.classList.contains('open');
+  header.classList.toggle('open',!isOpen);
+  arrow.classList.toggle('open',!isOpen);
+  panel.classList.toggle('open',!isOpen);
+}
+
+function deleteInv(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);
+  if(!inv) return;
+  if(!confirm(`Delete invoice "${inv.num} — ${inv.period}"?\n\nThis cannot be undone. Any receipts linked to this invoice will lose the reference.`)) return;
+  // Remove from state
+  ST.invoices=ST.invoices.filter(i=>i.id!==invId);
+  // Clear active if it was the deleted one
+  if(activeInvId===invId){
+    activeInvId=null;
+    const det=document.getElementById('inv-detail');
+    if(det)det.innerHTML='<div class="es" style="padding:70px 0"><div class="ic">👈</div><div>Select a project and invoice</div></div>';
+  }
+  persist();
+  renderInvList();
+}
+
+// ── INVOICE HISTORY MODAL ──
+function openInvHistory(){
+  // Populate project filter
+  const filter=document.getElementById('inv-hist-filter');
+  if(filter){
+    const projects=[...new Set(ST.invoices.map(i=>i.boqNum||''))].filter(Boolean);
+    filter.innerHTML='<option value="all">All Projects</option>';
+    projects.forEach(p=>{filter.innerHTML+=`<option value="${p}">${p}</option>`;});
+  }
+  renderInvHistoryModal();
+  document.getElementById('inv-hist-modal').classList.add('show');
+}
+
+function renderInvHistoryModal(){
+  const el=document.getElementById('inv-hist-list');if(!el)return;
+  const q=(document.getElementById('inv-hist-search')?.value||'').toLowerCase();
+  const proj=document.getElementById('inv-hist-filter')?.value||'all';
+
+  const invs=[...ST.invoices]
+    .filter(i=>proj==='all'||i.boqNum===proj)
+    .filter(i=>!q||(i.num+i.period+i.project+i.client+i.boqNum).toLowerCase().includes(q))
+    .reverse();
+
+  if(!invs.length){el.innerHTML='<div class="es" style="padding:20px"><div>No invoices found</div></div>';return;}
+  el.innerHTML='';
+
+  // Group by project for the modal too
+  const groups={};
+  invs.forEach(inv=>{
+    const k=inv.boqNum||'NO-BOQ';
+    if(!groups[k])groups[k]={label:inv.project||inv.client||inv.boqNum||'Unknown',invoices:[]};
+    groups[k].invoices.push(inv);
+  });
+
+  Object.entries(groups).forEach(([k,g])=>{
+    const hdr=document.createElement('div');
+    hdr.style.cssText='padding:7px 10px;background:var(--sf3);font-size:11px;font-weight:700;color:var(--ac);border-radius:6px;margin-bottom:4px;margin-top:8px;';
+    hdr.innerHTML=`📁 ${esc(g.label)} <span style="color:var(--tx3);font-weight:400">(${g.invoices.length})</span>`;
+    el.appendChild(hdr);
+
+    g.invoices.forEach(inv=>{
+      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
+      const vat=sub*(inv.vatRate||10)/100;
+      const tot=sub+vat;
+      const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:7px;margin-bottom:5px;transition:border .15s;cursor:pointer;';
+      row.onmouseenter=()=>row.style.borderColor='var(--ac)';
+      row.onmouseleave=()=>row.style.borderColor='var(--bd)';
+      row.innerHTML=`
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:var(--M);font-size:11px;color:var(--ac)">${esc(inv.num)}</span>
+            <span style="font-size:11px;font-weight:600">${esc(inv.period||'Progress Invoice')}</span>
+          </div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px">${inv.date} · ${esc(inv.boqNum||'')} · ${fa(cv(tot))} · Progress: ${pct.toFixed(1)}%</div>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-p btn-sm" style="font-size:11px" onclick="loadInvFromHistory('${inv.id}')">📂 Load</button>
+          <button class="btn btn-d" style="font-size:11px;padding:3px 8px" onclick="deleteInvFromHistory('${inv.id}')">✕</button>
+        </div>`;
+      el.appendChild(row);
+    });
+  });
+}
+
+function loadInvFromHistory(invId){
+  closeModal('inv-hist-modal');
+  // Switch to invoice page and open this invoice
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-invoice').classList.add('active');
+  document.querySelectorAll('.nbtn').forEach(b=>{if(b.textContent.includes('Invoice'))b.classList.add('active');});
+  renderInvList();
+  openInv(invId);
+  // Scroll to make the invoice visible
+  setTimeout(()=>{
+    const item=document.querySelector('.inv-tree-item.active');
+    if(item)item.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },200);
+}
+
+function deleteInvFromHistory(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  if(!confirm(`Delete invoice "${inv.num} — ${inv.period}"?\n\nThis cannot be undone.`))return;
+  ST.invoices=ST.invoices.filter(i=>i.id!==invId);
+  if(activeInvId===invId){
+    activeInvId=null;
+    const det=document.getElementById('inv-detail');
+    if(det)det.innerHTML='<div class="es" style="padding:70px 0"><div class="ic">👈</div><div>Select a project and invoice</div></div>';
+  }
+  persist();renderInvList();renderInvHistoryModal();
 }
 function openInv(invId){
   activeInvId=invId;const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
@@ -1952,6 +2178,7 @@ function openInv(invId){
           <button class="btn btn-e btn-sm" onclick="exportInv('${invId}','pdf')">⬇ PDF</button>
           <button class="btn btn-e btn-sm" onclick="exportInv('${invId}','jpeg')">⬇ JPEG</button>
           <button class="btn btn-g btn-sm" onclick="saveInv('${invId}')">✓ Save</button>
+          <button class="btn btn-d btn-sm" onclick="deleteInv('${invId}')">🗑 Delete</button>
         </div>
       </div>
       <div class="rs">
