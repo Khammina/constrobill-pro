@@ -244,8 +244,15 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
         <button id="auth-tab-forgot" onclick="switchAuthTab('forgot')" style="flex:1;padding:13px;background:transparent;color:var(--tx3);border:none;cursor:pointer;font-family:var(--F);font-size:13px;font-weight:600;transition:all .15s">Reset</button>
       </div>
       <div style="padding:24px">
-        <!-- STATUS MESSAGE -->
-        <div id="auth-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;font-weight:600"></div>
+    <!-- GAS URL warning — shown only when GAS_URL is not configured -->
+    <div id="gas-url-warning" style="display:none;background:rgba(245,200,66,.12);border:1px solid rgba(245,200,66,.4);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--ye)">
+      <div style="font-weight:700;margin-bottom:4px">⚠ Cloud sync not configured</div>
+      <div style="color:var(--tx2);font-size:11px;line-height:1.5">
+        <code style="background:var(--sf3);padding:1px 5px;border-radius:3px;font-size:10px">GAS_URL</code> is empty in <code style="background:var(--sf3);padding:1px 5px;border-radius:3px;font-size:10px">index.html</code>.<br>
+        Data will save to <b>browser only</b> — not to Google Sheets.<br>
+        <span style="color:var(--tx3)">Deploy <code style="font-size:10px">gas-server.gs</code> → paste the /exec URL → re-upload <code style="font-size:10px">index.html</code>.</span>
+      </div>
+    </div>
 
         <!-- ── LOGIN FORM ── -->
         <div id="auth-form-login">
@@ -368,7 +375,7 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
 // ─────────────────────────────────────────────────────
 // ⚠ Replace the URL below with your deployed Web App /exec URL after deployment
 // Library URL (for reference): https://script.google.com/macros/library/d/1XgwwgNrpMcljBIWxGxUvXEEy6WFvnjlSLMIq_DdnzrtsBZ-ozsQJHhmo/1
-const GAS_URL = '';  // ← paste your /exec Web App URL here after deploying gas-server.gs
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzsBbE4qzeccRx3Wn2Y3coeXI89AZiRUcA6RljL3c3zIQkrkxLQYDsbgXrf4NhsdCLA/exec';
 
 // ─────────────────────────────────────────────────────
 //  MULTI-USER DATA SYNC
@@ -1413,7 +1420,6 @@ window.onload=()=>{
   renderInvList();renderRecList();
 };
 
-function persist(){localStorage.setItem('cb_st3',JSON.stringify(ST));}
 function savePrefs(){localStorage.setItem('cb_prefs',JSON.stringify({xr:showXR(),sr:document.getElementById('show-rates')?.checked!==false}));}
 function refreshAll(){calcBOQ();renderInvList();renderRecList();if(activeInvId)openInv(activeInvId);}
 function setupDrop(dzId,fiId,prevId,phId){
@@ -4170,6 +4176,9 @@ window.addEventListener('load',()=>{
     const sec=document.getElementById('google-signin-section');
     if(sec)sec.style.display='block';
   }
+  // Show cloud warning if GAS_URL is not set
+  const gasWarn=document.getElementById('gas-url-warning');
+  if(gasWarn)gasWarn.style.display=GAS_URL?'none':'block';
 },false);
 
 
