@@ -346,6 +346,9 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
     <div style="text-align:center;margin-top:16px;font-size:10px;color:var(--tx3)">
       ConstroBill Pro · Created by <strong>Khammina</strong> · SCMV · Data stored in Google Sheets
     </div>
+    <div style="text-align:center;margin-top:6px">
+      <button onclick="testGASConnection()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:10px;font-family:var(--F);text-decoration:underline">🔌 Test server connection</button>
+    </div>
   </div>
 </div>
 
@@ -367,15 +370,51 @@ let _syncPending = false;
 
 async function gasRequest(action, payload, silent){
   if(!GAS_URL) throw new Error('GAS_URL_MISSING');
+
   const body = JSON.stringify({action, ...payload});
-  const r = await fetch(GAS_URL, {
-    method:'POST', body,
-    headers:{'Content-Type':'application/json'}
-  });
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const data = await r.json();
-  if(!data.ok && !silent) throw new Error(data.error||'Server error');
-  return data;
+
+  // AbortController for timeout (15 seconds)
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(()=>ctrl.abort(), 15000);
+
+  try{
+    // Google Apps Script requires no-cors or cors with proper deploy settings.
+    // We use mode:'cors' since the GAS is deployed as "Anyone" with no auth.
+    const r = await fetch(GAS_URL, {
+      method: 'POST',
+      body,
+      headers: {'Content-Type': 'text/plain'}, // GAS needs text/plain for CORS
+      signal: ctrl.signal,
+      mode: 'cors'
+    });
+    clearTimeout(timeoutId);
+
+    if(!r.ok) throw new Error('Server returned HTTP ' + r.status);
+
+    let data;
+    try{ data = await r.json(); }
+    catch(je){ throw new Error('Invalid response from server. Check GAS deployment.'); }
+
+    if(!data.ok && !silent){
+      throw new Error(data.error || 'Server returned an error.');
+    }
+    return data;
+
+  } catch(e){
+    clearTimeout(timeoutId);
+
+    // Convert raw fetch errors to user-friendly messages
+    const msg = e.message || '';
+    if(e.name === 'AbortError')
+      throw new Error('Request timed out. Check your internet connection.');
+    if(msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch'))
+      throw new Error('Cannot reach the server. Check your internet connection or GAS URL.');
+    if(msg.includes('CORS') || msg.includes('cross-origin'))
+      throw new Error('CORS error: Re-deploy your Google Apps Script with "Anyone" access.');
+    if(msg.includes('GAS_URL_MISSING'))
+      throw new Error('GAS_URL_MISSING');
+    throw e; // re-throw known errors as-is
+  }
 }
 
 // Debounced sync — saves user data to Google Sheets 2s after last change
@@ -3647,8 +3686,15 @@ async function doLogin(){
       await finishLogin({...res.user,token:res.token,userId:res.userId},remember);
     }
   }catch(e){
-    if(e.message==='GAS_URL_MISSING') showAuthMsg('Sign in requires Google Sheets. Use Demo mode or configure GAS first.','info');
-    else showAuthMsg(e.message||'Login failed.');
+    const msg = e.message||'';
+    if(msg==='GAS_URL_MISSING')
+      showAuthMsg('Cloud login requires Google Apps Script setup. Click "Continue without account" to use Demo mode.','info');
+    else if(msg.includes('Cannot reach') || msg.includes('timed out'))
+      showAuthMsg('⚠ Cannot reach the server. Check your internet connection and try again.','error');
+    else if(msg.includes('CORS'))
+      showAuthMsg('⚠ CORS error: Re-deploy your Google Apps Script with "Anyone" access.','error');
+    else
+      showAuthMsg(msg||'Login failed. Please try again.');
   }
   if(btn){btn.textContent='Sign In';btn.disabled=false;}
 }
@@ -3692,7 +3738,15 @@ async function doRegister(){
       showAuthMsg('✅ Account created! Please sign in.','success');
       setTimeout(()=>switchAuthTab('login'),1800);
     }
-  }catch(e){showAuthMsg(e.message||'Registration failed.');}
+  }catch(e){
+    const msg=e.message||'';
+    if(msg.includes('Cannot reach')||msg.includes('timed out'))
+      showAuthMsg('⚠ Cannot reach the server. Check your internet and try again.','error');
+    else if(msg.includes('CORS'))
+      showAuthMsg('⚠ CORS error: Re-deploy your Google Apps Script with "Anyone" access.','error');
+    else
+      showAuthMsg(msg||'Registration failed.');
+  }
 }
 
 // ── FORGOT PASSWORD ──
@@ -3704,7 +3758,13 @@ async function doForgot(){
     if(!GAS_URL){showAuthMsg('Password reset requires Google Apps Script to be configured.','info');return;}
     await gasRequest('forgotPassword',{email});
     showAuthMsg('✅ Reset link sent to '+email+'. Check your inbox.','success');
-  }catch(e){showAuthMsg(e.message||'Could not send reset email.');}
+  }catch(e){
+    const msg=e.message||'';
+    if(msg.includes('Cannot reach')||msg.includes('timed out'))
+      showAuthMsg('⚠ Cannot reach the server. Check your internet and try again.','error');
+    else
+      showAuthMsg(msg||'Could not send reset email.');
+  }
 }
 
 // ── FINISH LOGIN ──
@@ -4371,6 +4431,50 @@ function saveSettings(){
 
 // Load on startup
 window.addEventListener('load',()=>{ loadSigProfiles();syncDefaultSigToGlobal(); },false);
+
+
+// ── GAS CONNECTION TEST ──────────────────────────────
+async function testGASConnection(){
+  const msg = document.getElementById('auth-msg');
+
+  if(!GAS_URL){
+    showAuthMsg('ℹ GAS_URL is not configured. You are running in local/demo mode only.\n\nTo enable cloud sync, paste your Google Apps Script Web App URL into the GAS_URL field in index.html.','info');
+    return;
+  }
+
+  showAuthMsg('🔌 Testing connection to server…','info');
+
+  try{
+    // Test GET endpoint (health check)
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 10000);
+    const r = await fetch(GAS_URL, {method:'GET', signal:ctrl.signal, mode:'cors'});
+    clearTimeout(t);
+
+    if(r.ok){
+      let txt = await r.text();
+      try{
+        const d = JSON.parse(txt);
+        if(d.ok) showAuthMsg('✅ Server connected successfully!\nService: '+d.service+' v'+d.version+'\n\nYou can now register and sign in.','success');
+        else showAuthMsg('⚠ Server responded but returned an error: '+(d.error||'unknown'),'error');
+      } catch(e){
+        showAuthMsg('✅ Server is reachable but returned unexpected format.\nThis may still work — try registering.','info');
+      }
+    } else {
+      showAuthMsg('⚠ Server returned HTTP '+r.status+'.\nCheck your GAS deployment settings.','error');
+    }
+  } catch(e){
+    const em = e.message||'';
+    if(e.name==='AbortError')
+      showAuthMsg('❌ Connection timed out (10s).\n\nPossible causes:\n• No internet connection\n• GAS_URL is incorrect\n• Google Apps Script is not deployed','error');
+    else if(em.includes('Failed to fetch')||em.includes('NetworkError'))
+      showAuthMsg('❌ Failed to fetch.\n\nPossible causes:\n• No internet connection\n• GAS_URL is wrong or empty\n• Script not deployed as "Web App"\n• "Who has access" must be set to "Anyone"\n\nTry: Re-deploy your Apps Script → New Deployment → Web App → Anyone.','error');
+    else if(em.includes('CORS'))
+      showAuthMsg('❌ CORS blocked.\n\nFix: In Apps Script → Deploy → New Deployment:\n• Execute as: Me\n• Who has access: Anyone\n\nThen copy the NEW URL.','error');
+    else
+      showAuthMsg('❌ Connection error: '+em,'error');
+  }
+}
 
 </script>
 </body>
