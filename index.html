@@ -1320,10 +1320,37 @@ function showSyncStatus(status){
 <div class="mb" id="inv-modal">
   <div class="modal">
     <h3>New Invoice</h3>
-    <div class="fm" style="margin-bottom:8px"><label>Invoice Number</label><input id="in-num"/></div>
-    <div class="fm" style="margin-bottom:8px"><label>Invoice Date</label><input id="in-date" type="date"/></div>
-    <div class="fm" style="margin-bottom:8px"><label>Based on BOQ</label><select id="in-boq"><option value="">-- Select BOQ --</option></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div class="fm"><label>Invoice Number</label><input id="in-num"/></div>
+      <div class="fm"><label>Invoice Date</label><input id="in-date" type="date"/></div>
+    </div>
+    <div class="fm" style="margin-bottom:8px"><label>Based on BOQ</label>
+      <select id="in-boq" onchange="onInvBOQChange()"><option value="">-- Select BOQ --</option></select>
+    </div>
     <div class="fm" style="margin-bottom:8px"><label>Work Period / Description</label><input id="in-period" placeholder="e.g. 1st Progress — Foundation Work"/></div>
+    <!-- VAT SETTING -->
+    <div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 13px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--tx2);margin-bottom:7px">🧮 VAT / Tax Setting</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label class="chkrow" style="gap:6px">
+          <input type="checkbox" id="in-vat-enabled" onchange="onInvVATChange()"/>
+          <span style="font-size:12px;font-weight:600;color:var(--tx)">Include VAT</span>
+        </label>
+        <div id="in-vat-rate-wrap" style="display:none;display:flex;align-items:center;gap:6px">
+          <input type="number" id="in-vat-rate" value="10" min="0" max="100" step="any" style="width:70px;padding:5px 8px"/>
+          <span style="font-size:12px;color:var(--tx2)">%</span>
+        </div>
+        <div id="in-vat-info" style="font-size:11px;color:var(--tx3)">VAT excluded — invoice amount = subtotal only</div>
+      </div>
+      <!-- BOQ VAT preview -->
+      <div id="in-boq-vat-preview" style="display:none;margin-top:7px;padding:6px 9px;background:var(--sf3);border-radius:6px;font-size:11px;color:var(--tx3)"></div>
+    </div>
+    <!-- BOQ GRAND TOTAL PREVIEW -->
+    <div id="in-boq-grand-preview" style="display:none;background:var(--sf3);border:1px solid var(--bd);border-radius:8px;padding:9px 13px;margin-bottom:8px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx3);margin-bottom:5px">BOQ Grand Total (contract base)</div>
+      <div id="in-boq-grand-val" style="font-family:var(--M);font-size:16px;font-weight:800;color:var(--ac)"></div>
+      <div id="in-boq-grand-detail" style="font-size:10px;color:var(--tx3);margin-top:3px"></div>
+    </div>
     <!-- PAYMENT INSTRUCTIONS SELECTOR -->
     <div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
@@ -1935,14 +1962,66 @@ function buildBOQHtml(){
 // ═══════════════════════════════════════════════
 function fillInvBOQSel(){
   const sel=document.getElementById('in-boq');sel.innerHTML='<option value="">-- Select BOQ --</option>';
-  // deduplicated by num - show latest
   const seen={};const dedupd=[];
   [...ST.boqs].reverse().forEach(b=>{if(!seen[b.num]){seen[b.num]=true;dedupd.push(b);}});
   dedupd.forEach(b=>sel.innerHTML+=`<option value="${b.id}">${b.num} – ${b.client} / ${b.project}</option>`);
   document.getElementById('in-num').value=`INV-${new Date().getFullYear()}-${String(ST.invoices.length+1).padStart(3,'0')}`;
   document.getElementById('in-date').value=new Date().toISOString().split('T')[0];
 }
-function openNewInv(){fillInvBOQSel();populatePayPresetDropdowns();document.getElementById('inv-modal').classList.add('show');}
+
+function onInvBOQChange(){
+  const boqId=document.getElementById('in-boq')?.value;
+  const preview=document.getElementById('in-boq-grand-preview');
+  const vatPreview=document.getElementById('in-boq-vat-preview');
+  if(!boqId||!preview){if(preview)preview.style.display='none';return;}
+  const boq=ST.boqs.find(b=>b.id===boqId);if(!boq){preview.style.display='none';return;}
+
+  // Calculate BOQ Grand Total
+  let sub=0;
+  boq.sections.forEach(s=>s.items.forEach(i=>sub+=(i.pUSD||0)*(i.qty||0)));
+  const discAmt=boq.discount?.amtUSD||0;
+  const afterDisc=sub-discAmt;
+  const vr=boq.vatRate||0;
+  const vat=afterDisc*vr/100;
+  const grand=afterDisc+vat;
+
+  // Auto-set VAT checkbox from BOQ's VAT rate
+  const vatCb=document.getElementById('in-vat-enabled');
+  const vatRateEl=document.getElementById('in-vat-rate');
+  if(vatCb){vatCb.checked=vr>0;if(vatRateEl)vatRateEl.value=vr;}
+  onInvVATChange();
+
+  preview.style.display='block';
+  document.getElementById('in-boq-grand-val').innerHTML=
+    `${fa(cv(grand))} <span style="font-size:11px;font-weight:400;color:var(--tx3)">(${fa(cv(grand),'USD')})</span>`;
+  const details=[];
+  if(sub!==grand) details.push(`Subtotal: ${fa(cv(sub))}`);
+  if(discAmt>0) details.push(`Discount: −${fa(cv(discAmt))}`);
+  if(vr>0) details.push(`VAT (${vr}%): +${fa(cv(vat))}`);
+  else details.push('VAT: Excluded');
+  document.getElementById('in-boq-grand-detail').textContent=details.join(' · ');
+
+  if(vatPreview){
+    if(vr===0){
+      vatPreview.style.display='block';
+      vatPreview.innerHTML=`ℹ The selected BOQ has <b>VAT Excluded</b> (0%). Invoice will use 0% VAT.`;
+    } else {
+      vatPreview.style.display='block';
+      vatPreview.innerHTML=`ℹ BOQ VAT rate: <b>${vr}%</b>. You can change this for this invoice below.`;
+    }
+  }
+}
+
+function onInvVATChange(){
+  const enabled=document.getElementById('in-vat-enabled')?.checked;
+  const wrap=document.getElementById('in-vat-rate-wrap');
+  const info=document.getElementById('in-vat-info');
+  if(wrap)wrap.style.display=enabled?'flex':'none';
+  if(info)info.textContent=enabled
+    ?`VAT included — invoice total = subtotal + VAT`
+    :`VAT excluded — invoice total = subtotal only`;
+}
+
 function createInv(){
   const num=document.getElementById('in-num').value.trim();
   const date=document.getElementById('in-date').value;
@@ -1952,30 +2031,56 @@ function createInv(){
   const boq=ST.boqs.find(b=>b.id===boqId);if(!boq)return;
   const prev=ST.invoices.filter(i=>i.boqId===boqId);
 
-  // Calculate BOQ-level discount ratio to distribute proportionally across items
-  let boqRawTotal=0;
-  boq.sections.forEach(sec=>sec.items.forEach(it=>{ boqRawTotal+=(it.pUSD||0)*(it.qty||0); }));
+  // VAT setting from modal
+  const vatEnabled=document.getElementById('in-vat-enabled')?.checked;
+  const vatRate=vatEnabled?parseFloat(document.getElementById('in-vat-rate')?.value||boq.vatRate||0):0;
+
+  // BOQ Grand Total basis — each item's boqTotal = item's share of Grand Total (incl discount & VAT)
+  let boqSubtotal=0;
+  boq.sections.forEach(sec=>sec.items.forEach(it=>{ boqSubtotal+=(it.pUSD||0)*(it.qty||0); }));
   const discAmt=boq.discount?.amtUSD||0;
-  // discountRatio: what fraction of each item's value is removed by the discount
-  const discountRatio=(boqRawTotal>0&&discAmt>0)?(discAmt/boqRawTotal):0;
+  const afterDisc=boqSubtotal-discAmt;
+  const boqVAT=afterDisc*(vatRate/100);
+  const boqGrand=afterDisc+boqVAT;
+  // Grand Total ratio: for distributing Grand Total proportionally to each item
+  const grandRatio=boqSubtotal>0?(boqGrand/boqSubtotal):1;
+  // discountRatio for display reference
+  const discountRatio=(boqSubtotal>0&&discAmt>0)?(discAmt/boqSubtotal):0;
 
   const items=[];
   boq.sections.forEach(sec=>{sec.items.forEach(it=>{
     const rawTotal=(it.pUSD||0)*(it.qty||0);
-    // Apply proportional discount to get the effective contract value for this item
-    const bT=rawTotal*(1-discountRatio);
+    // Each item's boqTotal = its share of the BOQ Grand Total (after discount + VAT proportional share)
+    const bT=rawTotal*grandRatio;
     let pPct=0;prev.forEach(pi=>{const px=pi.items.find(x=>x.bid===it.id);if(px)pPct=Math.max(pPct,px.cumPct||0);});
     items.push({bid:it.id,sec:sec.name,desc:it.desc,unit:it.unit,boqQty:it.qty,boqPUSD:it.pUSD,
-      boqRawTotal:rawTotal,  // store raw for reference
-      boqTotal:bT,           // discounted contract value — used for all invoice calculations
-      discountRatio,         // stored so % columns stay accurate
+      boqRawTotal:rawTotal,
+      boqTotal:bT,           // = item's share of Grand Total
+      discountRatio,
+      grandRatio,
       pct:0,amt:0,prevPct:pPct,prevAmt:bT*pPct/100,cumPct:pPct,cumAmt:bT*pPct/100,rem:bT*(1-pPct/100)});
   });});
   const payObj=getInvPayObj();
   ST.invoices.push({id:uid(),num,date,boqId,boqNum:boq.num,period,items,
-    vatRate:boq.vatRate,discount:boq.discount||null,
+    vatRate,            // invoice-level VAT (0 = excluded)
+    vatEnabled,         // explicit flag
+    discount:boq.discount||null,
+    boqGrand,           // store BOQ Grand Total for reference
     client:boq.client,project:boq.project,location:boq.location,payObj});
   persist();closeModal('inv-modal');renderInvList();openInv(ST.invoices[ST.invoices.length-1].id);
+}
+function openNewInv(){
+  fillInvBOQSel();
+  populatePayPresetDropdowns();
+  // Reset VAT state
+  const vatCb=document.getElementById('in-vat-enabled');
+  if(vatCb)vatCb.checked=false;
+  onInvVATChange();
+  const preview=document.getElementById('in-boq-grand-preview');
+  if(preview)preview.style.display='none';
+  const vatPrev=document.getElementById('in-boq-vat-preview');
+  if(vatPrev)vatPrev.style.display='none';
+  document.getElementById('inv-modal').classList.add('show');
 }
 function renderInvList(){
   const el=document.getElementById('inv-list');
@@ -2181,21 +2286,25 @@ function deleteInvFromHistory(invId){
 function openInv(invId){
   activeInvId=invId;const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   renderInvList();
-  const vr=inv.vatRate||10;
+  const vr=inv.vatRate||0;
+  const vatEnabled=inv.vatEnabled||(vr>0);
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   let pU=inv.items.reduce((a,i)=>a+(i.prevAmt||0),0);
   let cU=inv.items.reduce((a,i)=>a+(i.cumAmt||0),0);
   let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);
-  // Raw BOQ total (before discount) for reference
   let bGRaw=inv.items.reduce((a,i)=>a+(i.boqRawTotal||i.boqTotal||0),0);
   const vat=tU*vr/100;
 
-  // BOQ Total column header label
-  const boqColLabel=hasDisc
-    ?`Contract Value<br><span style="font-size:9px;color:var(--ye)">after ${disc.type==='pct'?disc.val+'% ':''} discount</span>`
-    :'BOQ Total';
+  // Column header: describes what boqTotal represents
+  const boqColLabel=vatEnabled
+    ?(hasDisc
+      ?`Grand Total<br><span style="font-size:9px;color:var(--ye)">incl. VAT + after discount</span>`
+      :`Grand Total<br><span style="font-size:9px;color:var(--tx3)">incl. VAT ${vr}%</span>`)
+    :(hasDisc
+      ?`Contract Value<br><span style="font-size:9px;color:var(--ye)">after discount, excl. VAT</span>`
+      :`Contract Value<br><span style="font-size:9px;color:var(--tx3)">excl. VAT</span>`);
   let tr='';let cs='';
   inv.items.forEach((it,idx)=>{
     if(it.sec!==cs){cs=it.sec;tr+=`<tr style="background:var(--sf3)"><td colspan="10" style="font-weight:700;padding:6px 9px;font-size:12px">${esc(it.sec)}</td></tr>`;}
@@ -2248,7 +2357,13 @@ function openInv(invId){
       <div class="totals">
         <div class="tb">
           <div class="tr2"><span class="tl">This Subtotal</span><span class="tv" id="isub-${invId}">${mcT(tU)}</span></div>
-          <div class="tr2"><span class="tl">VAT ${vr>0?`(${vr}%)`:'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>'}</span><span class="tv" id="ivat-${invId}">${mcT(vat)}</span></div>
+          <div class="tr2">
+            <span class="tl">VAT ${vatEnabled&&vr>0
+              ?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`
+              :'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>'
+            }</span>
+            <span class="tv" id="ivat-${invId}">${vatEnabled&&vr>0?mcT(vat):`<span style="font-size:11px;color:var(--tx3);font-family:var(--M)">—</span>`}</span>
+          </div>
           <div class="tr2"><span class="tl" style="color:var(--tx3)">Previous Invoiced</span><span class="tv" style="opacity:.5">${mcT(pU)}</span></div>
           <div class="tr2 sep grand"><span class="tl">THIS INVOICE TOTAL</span><span class="tv" id="itot-${invId}">${mcT(tU+vat,true)}</span></div>
         </div>
@@ -2397,7 +2512,9 @@ function updPct(invId,bid,pct){
   it.pct=pct;it.amt=it.boqTotal*pct/100;
   it.cumPct=it.prevPct+pct;it.cumAmt=it.boqTotal*it.cumPct/100;it.rem=it.boqTotal-it.cumAmt;
   const el=document.getElementById('it-'+bid);if(el)el.innerHTML=mcC(it.amt);
-  let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);const vat=tU*(inv.vatRate||10)/100;
+  let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
+  const vatEnabled=inv.vatEnabled||(inv.vatRate||0)>0;
+  const vat=vatEnabled?tU*(inv.vatRate||0)/100:0;
   setH('isub-'+invId,mcT(tU));setH('ivat-'+invId,mcT(vat));setH('itot-'+invId,mcT(tU+vat,true));
   // Notify Dashboard/Finance of progress change
   markDirty();
