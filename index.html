@@ -456,6 +456,28 @@ async function gasRequest(action, payload, silent){
 }
 
 // Debounced sync — saves user data to Google Sheets 2s after last change
+// ─ DATA CHANGE NOTIFICATION ────────────────────────────────────────
+// Tracks whether Dashboard / Finance need a re-render
+let _dashDirty = true;
+let _finDirty  = true;
+let _dashTimer = null;
+let _finTimer  = null;
+
+function markDirty(){
+  _dashDirty = true;
+  _finDirty  = true;
+  // If Dashboard page is currently visible — refresh it live (debounced 600ms)
+  if(document.getElementById('page-dash')?.classList.contains('active')){
+    clearTimeout(_dashTimer);
+    _dashTimer = setTimeout(()=>{ if(_dashDirty){ renderDash(); _dashDirty=false; } }, 600);
+  }
+  // If Finance page is currently visible — refresh it live (debounced 600ms)
+  if(document.getElementById('page-finance')?.classList.contains('active')){
+    clearTimeout(_finTimer);
+    _finTimer = setTimeout(()=>{ if(_finDirty){ syncReceiptsToFIN(); renderFinance(); _finDirty=false; } }, 600);
+  }
+}
+
 function persist(){
   const key = authUser?.email ? 'cb_st3_'+btoa(authUser.email) : 'cb_st3';
   localStorage.setItem(key, JSON.stringify(ST));
@@ -465,6 +487,8 @@ function persist(){
     _syncTimer = setTimeout(()=>syncToCloud(), 2000);
     showSyncStatus('pending');
   }
+  // Notify Dashboard and Finance of data change
+  markDirty();
 }
 
 async function syncToCloud(){
@@ -2250,75 +2274,6 @@ function buildInvPayView(invId, po){
 }
 
 // Build the payment instructions EDITOR (edit mode)
-function showInvPayEditor(invId){
-  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
-  const po=inv.payObj||{};
-  const panel=document.getElementById('inv-pay-panel-'+invId);if(!panel)return;
-
-  // Build a list of presets: saved settings + option to clear
-  const savedHasPay=pay.bank||pay.acnum;
-
-  panel.innerHTML=`
-    <div style="border:1px solid var(--ac);border-radius:8px;overflow:hidden;box-shadow:0 0 0 3px ${getCSSVar('--ac')}22">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:var(--sf2);border-bottom:1px solid var(--bd)">
-        <div style="display:flex;align-items:center;gap:7px">
-          <span style="font-size:13px">💳</span>
-          <span style="font-size:12px;font-weight:700;color:var(--tx)">Edit Payment Instructions</span>
-        </div>
-        <button class="btn btn-o btn-sm" onclick="cancelInvPayEdit('${invId}')">✕ Cancel</button>
-      </div>
-      <div style="padding:13px 14px">
-        ${savedHasPay?`<div style="margin-bottom:10px">
-          <div style="font-size:11px;font-weight:600;color:var(--tx3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Quick Fill</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn btn-o btn-sm" onclick="fillInvPayFromSettings('${invId}')" style="font-size:11px">
-              📋 Use Settings Payment (${esc(pay.bank||'')}${pay.acnum?' ···'+pay.acnum.slice(-4):''})</button>
-            ${pay.qr?`<button class="btn btn-o btn-sm" onclick="fillInvPayQR('${invId}')" style="font-size:11px">📱 Include QR from Settings</button>`:''}
-          </div>
-        </div>`:
-        `<div style="background:var(--sf3);border-radius:6px;padding:8px 11px;margin-bottom:10px;font-size:11px;color:var(--tx3)">
-          💡 No payment details in Settings yet. <button class="btn btn-o btn-sm" onclick="openSettingsTab('payment');closeInvPayEditor('${invId}')" style="margin-left:5px;font-size:11px">⚙ Go to Payment Settings</button>
-        </div>`}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="fm"><label>Payment Type</label>
-            <input id="ipay-type-${invId}" value="${esc(po.type||pay.type||'')}" placeholder="TRANSFER / CASH / CHEQUE"/></div>
-          <div class="fm"><label>Currency</label>
-            <select id="ipay-curr-${invId}">
-              ${['USD','THB','LAK','ALL'].map(c=>`<option value="${c}" ${(po.curr||pay.curr||'USD')===c?'selected':''}>${c==='ALL'?'All Currencies':c}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fm"><label>Bank Name</label>
-            <input id="ipay-bank-${invId}" value="${esc(po.bank||pay.bank||'')}" placeholder="BCEL BANK"/></div>
-          <div class="fm"><label>Account Name</label>
-            <input id="ipay-acname-${invId}" value="${esc(po.acname||pay.acname||'')}" placeholder="Account Name"/></div>
-          <div class="fm" style="grid-column:span 2"><label>Account Number</label>
-            <input id="ipay-acnum-${invId}" value="${esc(po.acnum||pay.acnum||'')}" placeholder="Account Number"
-              style="font-family:var(--M);font-size:14px;letter-spacing:.5px"/></div>
-          <div class="fm" style="grid-column:span 2"><label>Notes (optional)</label>
-            <input id="ipay-notes-${invId}" value="${esc(po.notes||pay.notes||'')}" placeholder="Additional payment notes"/></div>
-        </div>
-        <!-- QR Section -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <div id="ipay-qr-prev-${invId}" style="${(po.qr||pay.qr)?'':'display:none'}">
-            <img src="${po.qr||pay.qr||''}" id="ipay-qr-img-${invId}" style="width:64px;height:64px;object-fit:contain;border:1px solid var(--bd);border-radius:6px"/>
-          </div>
-          <div style="flex:1">
-            <div style="font-size:11px;color:var(--tx2);margin-bottom:5px">QR Code for payment</div>
-            <div style="display:flex;gap:5px">
-              <label class="btn btn-o btn-sm" style="cursor:pointer;font-size:11px">
-                📁 Upload QR<input type="file" accept="image/*" style="display:none" onchange="handleInvPayQR('${invId}',this)"/>
-              </label>
-              <button class="btn btn-d" onclick="clearInvPayQR('${invId}')" style="font-size:11px">✕ Remove QR</button>
-            </div>
-          </div>
-        </div>
-        <div style="display:flex;gap:7px;padding-top:10px;border-top:1px solid var(--bd)">
-          <button class="btn btn-p" onclick="applyInvPayEdit('${invId}')">💾 Save Payment Instructions</button>
-          <button class="btn btn-o" onclick="cancelInvPayEdit('${invId}')">Cancel</button>
-        </div>
-      </div>
-    </div>`;
-}
 
 // Store temp QR for the editor
 const _invPayQRTemp={};
@@ -2417,6 +2372,8 @@ function updPct(invId,bid,pct){
   const el=document.getElementById('it-'+bid);if(el)el.innerHTML=mcC(it.amt);
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);const vat=tU*(inv.vatRate||10)/100;
   setH('isub-'+invId,mcT(tU));setH('ivat-'+invId,mcT(vat));setH('itot-'+invId,mcT(tU+vat,true));
+  // Notify Dashboard/Finance of progress change
+  markDirty();
 }
 function saveInv(invId){persist();renderInvList();alert('✅ Progress saved!');}
 
@@ -2986,18 +2943,37 @@ function deleteFinEntry(id){
   saveFIN();renderFinance();
 }
 
-// Auto-sync receipts into FIN as income entries
+// Auto-sync receipts into FIN as income entries — adds new, removes deleted, updates changed
 function syncReceiptsToFIN(){
+  // Remove auto entries whose receipt no longer exists
+  FIN = FIN.filter(f => {
+    if(!f.auto) return true; // keep all manual entries
+    return ST.receipts.some(r => r.id === f.ref);
+  });
+
+  // Add or update entries for each receipt
   ST.receipts.forEach(rec=>{
-    if(FIN.find(f=>f.auto&&f.ref===rec.id)) return; // already synced
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
     const tot=sub+sub*(inv?.vatRate||10)/100;
     if(tot<=0) return;
-    FIN.push({id:uid(),date:rec.date,type:'income',cat:'Project Revenue',
-      desc:`Receipt ${rec.num} – ${inv?.period||inv?.project||''}`,
-      curr:'USD',amtRaw:tot,amtUSD:tot,ref:rec.id,notes:`Project: ${inv?.project||boq?.project||''}`,auto:true});
+
+    const existing = FIN.find(f=>f.auto && f.ref===rec.id);
+    const desc = `Receipt ${rec.num} — ${inv?.period||inv?.project||''}`;
+    const notes = `Project: ${inv?.project||boq?.project||''} · Client: ${inv?.client||boq?.client||''}`;
+
+    if(existing){
+      // Update in case invoice amount changed
+      existing.amtRaw  = tot;
+      existing.amtUSD  = tot;
+      existing.date    = rec.date;
+      existing.desc    = desc;
+      existing.notes   = notes;
+    } else {
+      FIN.push({id:uid(),date:rec.date,type:'income',cat:'Project Revenue',
+        desc, curr:'USD',amtRaw:tot,amtUSD:tot,ref:rec.id,notes,auto:true});
+    }
   });
   saveFIN();
 }
@@ -3321,10 +3297,18 @@ function showPage(n,btn){
   document.querySelectorAll('.nbtn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+n).classList.add('active');
   if(btn)btn.classList.add('active');
-  if(n==='invoice')fillInvBOQSel();
-  if(n==='receipt')fillRecInvSel();
-  if(n==='dash'){setTimeout(renderDash,50);}
-  if(n==='finance'){loadFIN();setTimeout(renderFinance,50);}
+  if(n==='invoice') fillInvBOQSel();
+  if(n==='receipt') fillRecInvSel();
+  if(n==='dash'){
+    // Always re-render on navigation — data may have changed on other pages
+    clearTimeout(_dashTimer);
+    setTimeout(()=>{ renderDash(); _dashDirty=false; }, 50);
+  }
+  if(n==='finance'){
+    loadFIN();
+    clearTimeout(_finTimer);
+    setTimeout(()=>{ syncReceiptsToFIN(); renderFinance(); _finDirty=false; }, 50);
+  }
 }
 
 // Patch window.onload to also load FIN
@@ -4356,30 +4340,84 @@ function getInvPayObj(){
 }
 
 // Patch showInvPayEditor to populate profile dropdown inside the editor
-const _baseShowInvPayEditor = showInvPayEditor;
 function showInvPayEditor(invId){
-  // Call original
-  _baseShowInvPayEditor(invId);
-  // After editor renders, inject profile quick-select buttons
-  setTimeout(()=>{
-    const inv=ST.invoices.find(i=>i.id===invId);
-    const po=inv?.payObj;
-    const quickFillDiv=document.querySelector(`#inv-pay-panel-${invId} .pay-quick-profiles`);
-    // Build dynamic profile buttons section
-    if(!PAY_PROFILES.length) return;
-    const settingsDiv=document.querySelector(`#inv-pay-panel-${invId} [onclick="openSettingsTab('payment');closeInvPayEditor('${invId}')"]`);
-    const insertTarget=settingsDiv?.closest('div')?.parentElement||document.querySelector(`#inv-pay-panel-${invId}`);
-    // Inject profile selector above the form fields
-    const editorContent=document.querySelector(`#inv-pay-panel-${invId} [id^="ipay-type-"]`)?.closest('div[style*="grid"]');
-    if(!editorContent) return;
-    const profileBar=document.createElement('div');
-    profileBar.style.cssText='margin-bottom:10px;';
-    profileBar.innerHTML=`<div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Quick Fill from Profile</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        ${PAY_PROFILES.map(p=>`<button class="btn btn-o btn-sm" style="font-size:11px;border-color:${p.isDefault?'var(--gr)':'var(--bd)'};color:${p.isDefault?'var(--gr)':'var(--tx2)'}" onclick="fillInvPayFromProfile('${invId}','${p.id}')">${p.isDefault?'⭐ ':''} ${esc(p.label)}</button>`).join('')}
-      </div>`;
-    editorContent.parentNode.insertBefore(profileBar, editorContent);
-  }, 100);
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  const po=inv.payObj||{};
+  const panel=document.getElementById('inv-pay-panel-'+invId);if(!panel)return;
+
+  const savedHasPay=pay.bank||pay.acnum;
+
+  // Build profile quick-fill buttons
+  const profileBtns=PAY_PROFILES.length
+    ? `<div style="margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Quick Fill from Profile</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${PAY_PROFILES.map(p=>`<button class="btn btn-o btn-sm" style="font-size:11px;border-color:${p.isDefault?'var(--gr)':'var(--bd)'};color:${p.isDefault?'var(--gr)':'var(--tx2)'}" onclick="fillInvPayFromProfile('${invId}','${p.id}')">${p.isDefault?'⭐ ':''}${esc(p.label)}</button>`).join('')}
+        </div>
+      </div>`
+    : '';
+
+  panel.innerHTML=`
+    <div style="border:1px solid var(--ac);border-radius:8px;overflow:hidden;box-shadow:0 0 0 3px rgba(79,124,255,.12)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:var(--sf2);border-bottom:1px solid var(--bd)">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="font-size:13px">💳</span>
+          <span style="font-size:12px;font-weight:700;color:var(--tx)">Edit Payment Instructions</span>
+        </div>
+        <button class="btn btn-o btn-sm" onclick="cancelInvPayEdit('${invId}')">✕ Cancel</button>
+      </div>
+      <div style="padding:13px 14px">
+        ${profileBtns}
+        ${savedHasPay?`<div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">From Settings</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-o btn-sm" onclick="fillInvPayFromSettings('${invId}')" style="font-size:11px">
+              📋 Use Settings (${esc(pay.bank||'')}${pay.acnum?' ···'+pay.acnum.slice(-4):''})</button>
+            ${pay.qr?`<button class="btn btn-o btn-sm" onclick="fillInvPayQR('${invId}')" style="font-size:11px">📱 Include QR</button>`:''}
+          </div>
+        </div>`:
+        !PAY_PROFILES.length?`<div style="background:var(--sf3);border-radius:6px;padding:8px 11px;margin-bottom:10px;font-size:11px;color:var(--tx3)">
+          💡 No payment profiles saved yet. <button class="btn btn-o btn-sm" onclick="openSettingsTab('payment');cancelInvPayEdit('${invId}')" style="margin-left:5px;font-size:11px">⚙ Add Payment Profile</button>
+        </div>`:''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="fm"><label>Payment Type</label>
+            <input id="ipay-type-${invId}" value="${esc(po.type||pay.type||'')}" placeholder="TRANSFER / CASH / CHEQUE"/></div>
+          <div class="fm"><label>Currency</label>
+            <select id="ipay-curr-${invId}">
+              ${['USD','THB','LAK','ALL'].map(c=>`<option value="${c}" ${(po.curr||pay.curr||'USD')===c?'selected':''}>${c==='ALL'?'All Currencies':c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fm"><label>Bank Name</label>
+            <input id="ipay-bank-${invId}" value="${esc(po.bank||pay.bank||'')}" placeholder="BCEL BANK"/></div>
+          <div class="fm"><label>Account Name</label>
+            <input id="ipay-acname-${invId}" value="${esc(po.acname||pay.acname||'')}" placeholder="Account Name"/></div>
+          <div class="fm" style="grid-column:span 2"><label>Account Number</label>
+            <input id="ipay-acnum-${invId}" value="${esc(po.acnum||pay.acnum||'')}" placeholder="Account Number"
+              style="font-family:var(--M);font-size:14px;letter-spacing:.5px"/></div>
+          <div class="fm" style="grid-column:span 2"><label>Notes (optional)</label>
+            <input id="ipay-notes-${invId}" value="${esc(po.notes||pay.notes||'')}" placeholder="Additional payment notes"/></div>
+        </div>
+        <!-- QR Section -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div id="ipay-qr-prev-${invId}" style="${(po.qr||pay.qr)?'':'display:none'}">
+            <img src="${po.qr||pay.qr||''}" id="ipay-qr-img-${invId}" style="width:64px;height:64px;object-fit:contain;border:1px solid var(--bd);border-radius:6px"/>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--tx2);margin-bottom:5px">QR Code for payment</div>
+            <div style="display:flex;gap:5px">
+              <label class="btn btn-o btn-sm" style="cursor:pointer;font-size:11px">
+                📁 Upload QR<input type="file" accept="image/*" style="display:none" onchange="handleInvPayQR('${invId}',this)"/>
+              </label>
+              <button class="btn btn-d" onclick="clearInvPayQR('${invId}')" style="font-size:11px">✕ Remove QR</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;padding-top:10px;border-top:1px solid var(--bd)">
+          <button class="btn btn-p" onclick="applyInvPayEdit('${invId}')">💾 Save Payment Instructions</button>
+          <button class="btn btn-o" onclick="cancelInvPayEdit('${invId}')">Cancel</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function fillInvPayFromProfile(invId, profileId){
