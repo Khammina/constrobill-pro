@@ -1951,15 +1951,29 @@ function createInv(){
   if(!num||!boqId){alert('Fill required fields.');return;}
   const boq=ST.boqs.find(b=>b.id===boqId);if(!boq)return;
   const prev=ST.invoices.filter(i=>i.boqId===boqId);
+
+  // Calculate BOQ-level discount ratio to distribute proportionally across items
+  let boqRawTotal=0;
+  boq.sections.forEach(sec=>sec.items.forEach(it=>{ boqRawTotal+=(it.pUSD||0)*(it.qty||0); }));
+  const discAmt=boq.discount?.amtUSD||0;
+  // discountRatio: what fraction of each item's value is removed by the discount
+  const discountRatio=(boqRawTotal>0&&discAmt>0)?(discAmt/boqRawTotal):0;
+
   const items=[];
   boq.sections.forEach(sec=>{sec.items.forEach(it=>{
-    const bT=(it.pUSD||0)*(it.qty||0);
+    const rawTotal=(it.pUSD||0)*(it.qty||0);
+    // Apply proportional discount to get the effective contract value for this item
+    const bT=rawTotal*(1-discountRatio);
     let pPct=0;prev.forEach(pi=>{const px=pi.items.find(x=>x.bid===it.id);if(px)pPct=Math.max(pPct,px.cumPct||0);});
-    items.push({bid:it.id,sec:sec.name,desc:it.desc,unit:it.unit,boqQty:it.qty,boqPUSD:it.pUSD,boqTotal:bT,
+    items.push({bid:it.id,sec:sec.name,desc:it.desc,unit:it.unit,boqQty:it.qty,boqPUSD:it.pUSD,
+      boqRawTotal:rawTotal,  // store raw for reference
+      boqTotal:bT,           // discounted contract value — used for all invoice calculations
+      discountRatio,         // stored so % columns stay accurate
       pct:0,amt:0,prevPct:pPct,prevAmt:bT*pPct/100,cumPct:pPct,cumAmt:bT*pPct/100,rem:bT*(1-pPct/100)});
   });});
   const payObj=getInvPayObj();
-  ST.invoices.push({id:uid(),num,date,boqId,boqNum:boq.num,period,items,vatRate:boq.vatRate,
+  ST.invoices.push({id:uid(),num,date,boqId,boqNum:boq.num,period,items,
+    vatRate:boq.vatRate,discount:boq.discount||null,
     client:boq.client,project:boq.project,location:boq.location,payObj});
   persist();closeModal('inv-modal');renderInvList();openInv(ST.invoices[ST.invoices.length-1].id);
 }
@@ -2168,11 +2182,20 @@ function openInv(invId){
   activeInvId=invId;const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   renderInvList();
   const vr=inv.vatRate||10;
+  const disc=inv.discount;
+  const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   let pU=inv.items.reduce((a,i)=>a+(i.prevAmt||0),0);
   let cU=inv.items.reduce((a,i)=>a+(i.cumAmt||0),0);
   let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);
+  // Raw BOQ total (before discount) for reference
+  let bGRaw=inv.items.reduce((a,i)=>a+(i.boqRawTotal||i.boqTotal||0),0);
   const vat=tU*vr/100;
+
+  // BOQ Total column header label
+  const boqColLabel=hasDisc
+    ?`Contract Value<br><span style="font-size:9px;color:var(--ye)">after ${disc.type==='pct'?disc.val+'% ':''} discount</span>`
+    :'BOQ Total';
   let tr='';let cs='';
   inv.items.forEach((it,idx)=>{
     if(it.sec!==cs){cs=it.sec;tr+=`<tr style="background:var(--sf3)"><td colspan="10" style="font-weight:700;padding:6px 9px;font-size:12px">${esc(it.sec)}</td></tr>`;}
@@ -2208,12 +2231,16 @@ function openInv(invId){
       <div class="rs">
         <div class="rst"><div class="l">This Invoice (incl. VAT)</div><div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div><div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div></div>
         <div class="rst"><div class="l">Cumulative (excl. VAT)</div><div class="v" style="color:var(--ac)">${fa(cv(cU))}</div><div class="sv">${fa(cv(cU),'USD')}</div></div>
-        <div class="rst"><div class="l">Remaining vs BOQ</div><div class="v" style="color:var(--ye)">${fa(cv(bG-cU))}</div><div class="sv">BOQ: ${fa(cv(bG))}</div></div>
+        <div class="rst">
+          <div class="l">Contract Value ${hasDisc?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(30,217,122,.15);color:var(--gr);font-weight:700">Disc. applied</span>`:''}</div>
+          <div class="v" style="color:var(--ye)">${fa(cv(bG))}</div>
+          <div class="sv">${hasDisc?`<span style="color:var(--tx3);font-size:10px;text-decoration:line-through">${fa(cv(bGRaw))}</span> → ${fa(cv(bG),'USD')}`:`BOQ: ${fa(cv(bG))}`}</div>
+        </div>
       </div>
       <div class="tw" id="inv-tbl-${invId}">
         <table><thead><tr>
           <th>#</th><th style="min-width:120px">Description</th><th>Unit</th>
-          <th class="num">BOQ Total</th><th class="num">Previous</th>
+          <th class="num">${boqColLabel}</th><th class="num">Previous</th>
           <th class="num">This %</th><th class="num">This Amt</th>
           <th class="num">Cum %</th><th class="num">Cum Amt</th><th class="num">Remain</th>
         </tr></thead><tbody>${tr}</tbody></table>
@@ -2384,6 +2411,8 @@ function exportInv(invId,type){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
   const vr=inv.vatRate||10;
+  const disc=inv.discount;
+  const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   const vat=tU*vr/100;
   if(type==='excel'){
@@ -2393,8 +2422,11 @@ function exportInv(invId,type){
     rows.push(['Date',inv.date,'','Period',inv.period]);
     rows.push(['BOQ Ref.',inv.boqNum,'','Client',inv.client||'']);
     rows.push(['Project',inv.project||'','','Currency',CN[CURR]]);
-    if(showXR())rows.push(['Exchange Rates','1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);rows.push([]);
-    rows.push(['No.','Description','Unit','BOQ Amt','Prev%','Prev Amt','This%','This Amount','Cum%','Cum Amt','Remaining']);
+    if(hasDisc)rows.push(['Discount Applied',disc.type==='pct'?`${disc.val}% off subtotal`:`Fixed ${eA(disc.amtUSD)} off subtotal`]);
+    if(showXR())rows.push(['Exchange Rates','1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
+    rows.push([]);
+    const boqColHeader=hasDisc?`Contract Value (after ${disc.type==='pct'?disc.val+'% discount':'discount'})`:'Contract Value (BOQ)';
+    rows.push(['No.','Description','Unit',boqColHeader,'Prev%','Prev Amt','This%','This Amount','Cum%','Cum Amt','Remaining']);
     inv.items.forEach((it,i)=>{rows.push([i+1,it.desc,it.unit,eN(it.boqTotal),it.prevPct+'%',eN(it.prevAmt),it.pct+'%',eN(it.amt),it.cumPct+'%',eN(it.cumAmt),eN(it.rem)]);});
     rows.push([]);
     rows.push(['','','','','','','Subtotal','',eN(tU)]);
@@ -2403,7 +2435,7 @@ function exportInv(invId,type){
     rows.push(['','','','','','','INVOICE TOTAL','',eN(tU+vat)]);
     const invPo=inv.payObj;
     if(invPo&&(invPo.bank||invPo.acnum)){rows.push([]);rows.push(['Payment Instructions']);rows.push(['Method',invPo.type||'']);rows.push(['Bank',invPo.bank||'']);rows.push(['Account Name',invPo.acname||'']);rows.push(['Account No.',invPo.acnum||'']);rows.push(['Currency',invPo.curr||'']);}
-    const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:5},{wch:32},{wch:6},{wch:14},{wch:7},{wch:14},{wch:7},{wch:14},{wch:7},{wch:14},{wch:14}];
+    const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:5},{wch:32},{wch:6},{wch:18},{wch:7},{wch:14},{wch:7},{wch:14},{wch:7},{wch:14},{wch:14}];
     XLSX.utils.book_append_sheet(wb,ws,'Invoice');XLSX.writeFile(wb,'Invoice_'+inv.num+'.xlsx');
   } else if(type==='pdf'){
     printDoc(buildInvHtml(invId));
@@ -2416,9 +2448,15 @@ function buildInvHtml(invId){
   const inv=ST.invoices.find(i=>i.id===invId);
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
   const color=co.colorInv||co.color||'#1a3bcc',vr=inv.vatRate||10;
+  const disc=inv.discount;
+  const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   let pU=inv.items.reduce((a,i)=>a+(i.prevAmt||0),0);
+  let bGRaw=inv.items.reduce((a,i)=>a+(i.boqRawTotal||i.boqTotal||0),0);
+  let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);
   const vat=tU*vr/100;
+  const discLabel=hasDisc?(disc.type==='pct'?`Discount (${disc.val}%)`:'Discount'):'';
+  const boqColNote=hasDisc?`<br><span style="font-size:8px;color:rgba(255,255,255,.7)">(after ${discLabel})</span>`:'';
   let rows='';let cs='';let idx=0;
   inv.items.forEach(it=>{
     if(it.sec!==cs){cs=it.sec;rows+=`<tr><td colspan="9" style="background:${color}12;padding:5px 8px;font-weight:700;color:${color};font-size:10px;border-bottom:1px solid ${color}22">${esc(it.sec)}</td></tr>`;}
@@ -2427,7 +2465,7 @@ function buildInvHtml(invId){
       <td style="padding:4px 7px;color:#aaa;font-size:10px">${idx}</td>
       <td style="padding:4px 7px;font-size:11px">${esc(it.desc)}</td>
       <td style="padding:4px 7px;text-align:center;font-size:10px;color:#777">${it.unit}</td>
-      <td style="padding:4px 7px;text-align:right;font-size:11px">${eA(it.boqTotal)}</td>
+      <td style="padding:4px 7px;text-align:right;font-size:11px">${eA(it.boqTotal)}${hasDisc&&it.boqRawTotal?`<br><span style="font-size:9px;color:#aaa;text-decoration:line-through">${eA(it.boqRawTotal)}</span>`:''}</td>
       <td style="padding:4px 7px;text-align:right;font-size:10px;color:#888">${it.prevPct.toFixed(1)}%<br>${eA(it.prevAmt)}</td>
       <td style="padding:4px 7px;text-align:right;font-weight:700;color:${color};font-size:12px">${it.pct.toFixed(1)}%</td>
       <td style="padding:4px 7px;text-align:right;font-size:11px;font-weight:600">${eA(it.amt)}</td>
@@ -2477,7 +2515,7 @@ function buildInvHtml(invId){
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:left;width:28px">#</th>
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:left">Description</th>
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:center;width:36px">Unit</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">BOQ Total</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">Contract Value${boqColNote}</th>
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:75px">Previous</th>
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:44px">This%</th>
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">This Amount</th>
@@ -2490,6 +2528,7 @@ function buildInvHtml(invId){
         <div>${xrHTML(color)}</div>
         <table style="border-collapse:collapse;min-width:240px;font-size:11px;border:1px solid #e8ecf0">
           <tr style="background:#f8f9ff"><td style="padding:5px 13px;color:#777">Subtotal</td><td style="padding:5px 13px;text-align:right;font-weight:600">${eA(tU)}</td></tr>
+          ${hasDisc?`<tr style="background:#f0fff8"><td style="padding:5px 13px;color:#27ae60">${discLabel}</td><td style="padding:5px 13px;text-align:right;font-weight:600;color:#27ae60">Included in contract value</td></tr>`:''}
           ${vr>0
             ?`<tr><td style="padding:5px 13px;color:#777;border-top:1px solid #f0f0f0">VAT (${vr}%)</td><td style="padding:5px 13px;text-align:right;font-weight:600;border-top:1px solid #f0f0f0">${eA(vat)}</td></tr>`
             :`<tr><td style="padding:5px 13px;color:#999;border-top:1px solid #f0f0f0;font-size:11px">VAT <span style="background:#fff3cd;color:#856404;font-weight:700;padding:1px 5px;border-radius:3px;font-size:10px">Excluded</span></td><td style="padding:5px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">—</td></tr>`}
