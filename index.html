@@ -2141,7 +2141,7 @@ function renderInvList(){
     const invContainer=grp.querySelector('.proj-invoices');
     proj.invoices.slice().reverse().forEach(inv=>{
       const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-      const vat=sub*(inv.vatRate||10)/100;
+      const vat=sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
       const tot=sub+vat;
       const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
       const isActive=inv.id===activeInvId;
@@ -2232,7 +2232,7 @@ function renderInvHistoryModal(){
 
     g.invoices.forEach(inv=>{
       const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-      const vat=sub*(inv.vatRate||10)/100;
+      const vat=sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
       const tot=sub+vat;
       const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
       const row=document.createElement('div');
@@ -2327,7 +2327,10 @@ function openInv(invId){
   document.getElementById('inv-detail').innerHTML=`
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:7px;margin-bottom:11px">
-        <div><div style="font-size:14px;font-weight:700">${inv.num}</div><div style="font-size:11px;color:var(--tx3)">${inv.period} · ${inv.date}</div></div>
+        <div>
+          <div style="font-size:14px;font-weight:700">${inv.num}</div>
+          <div style="font-size:11px;color:var(--tx3)">${inv.period} · ${inv.date}</div>
+        </div>
         <div class="ar">
           <button class="btn btn-o btn-sm" onclick="previewDoc('inv','${invId}')" style="border-color:var(--ac2);color:var(--ac2)">👁 Preview</button>
           <button class="btn btn-e btn-sm" onclick="exportInv('${invId}','excel')">⬇ Excel</button>
@@ -2337,8 +2340,33 @@ function openInv(invId){
           <button class="btn btn-d btn-sm" onclick="deleteInv('${invId}')">🗑 Delete</button>
         </div>
       </div>
+
+      <!-- VAT INLINE EDITOR -->
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;color:var(--tx2)">🧮 VAT</span>
+        <label class="chkrow" style="gap:6px;margin:0">
+          <input type="checkbox" id="ivat-toggle-${invId}" ${vatEnabled&&vr>0?'checked':''} onchange="toggleInvVAT('${invId}')"/>
+          <span style="font-size:12px;font-weight:600;color:var(--tx)">Include VAT</span>
+        </label>
+        <div id="ivat-rate-wrap-${invId}" style="display:${vatEnabled&&vr>0?'flex':'none'};align-items:center;gap:6px">
+          <input type="number" id="ivat-rate-${invId}" value="${vr||10}" min="0" max="100" step="any"
+            style="width:65px;padding:4px 7px;font-size:12px" oninput="changeInvVATRate('${invId}')"/>
+          <span style="font-size:12px;color:var(--tx2)">%</span>
+        </div>
+        ${vatEnabled&&vr>0
+          ?`<span style="font-size:11px;color:var(--gr);font-weight:600">VAT ${vr}% included</span>`
+          :`<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700;border:1px solid rgba(245,200,66,.3)">VAT Excluded</span>`
+        }
+        <div style="flex:1"></div>
+        <button class="btn btn-o btn-sm" style="font-size:11px" onclick="saveInv('${invId}')">Apply</button>
+      </div>
+
       <div class="rs">
-        <div class="rst"><div class="l">This Invoice (incl. VAT)</div><div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div><div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div></div>
+        <div class="rst">
+          <div class="l">This Invoice ${vatEnabled&&vr>0?'(incl. VAT)':'(VAT Excluded)'}</div>
+          <div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div>
+          <div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div>
+        </div>
         <div class="rst"><div class="l">Cumulative (excl. VAT)</div><div class="v" style="color:var(--ac)">${fa(cv(cU))}</div><div class="sv">${fa(cv(cU),'USD')}</div></div>
         <div class="rst">
           <div class="l">Contract Value ${hasDisc?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(30,217,122,.15);color:var(--gr);font-weight:700">Disc. applied</span>`:''}</div>
@@ -2357,8 +2385,8 @@ function openInv(invId){
       <div class="totals">
         <div class="tb">
           <div class="tr2"><span class="tl">This Subtotal</span><span class="tv" id="isub-${invId}">${mcT(tU)}</span></div>
-          <div class="tr2">
-            <span class="tl">VAT ${vatEnabled&&vr>0
+          <div class="tr2" id="ivat-row-${invId}">
+            <span class="tl" id="ivat-label-${invId}">VAT ${vatEnabled&&vr>0
               ?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`
               :'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>'
             }</span>
@@ -2519,7 +2547,62 @@ function updPct(invId,bid,pct){
   // Notify Dashboard/Finance of progress change
   markDirty();
 }
-function saveInv(invId){persist();renderInvList();alert('✅ Progress saved!');}
+// ── INVOICE VAT INLINE EDIT ──────────────────────────────
+function toggleInvVAT(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  const checked=document.getElementById('ivat-toggle-'+invId)?.checked;
+  const rateWrap=document.getElementById('ivat-rate-wrap-'+invId);
+  if(rateWrap)rateWrap.style.display=checked?'flex':'none';
+  if(!checked){
+    // Immediately set VAT to 0 and refresh totals
+    inv.vatEnabled=false;inv.vatRate=0;
+    refreshInvTotals(invId);
+  } else {
+    const rate=parseFloat(document.getElementById('ivat-rate-'+invId)?.value||10);
+    inv.vatEnabled=true;inv.vatRate=rate;
+    refreshInvTotals(invId);
+  }
+}
+
+function changeInvVATRate(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  const rate=parseFloat(document.getElementById('ivat-rate-'+invId)?.value||0);
+  inv.vatRate=rate;
+  inv.vatEnabled=rate>0;
+  refreshInvTotals(invId);
+}
+
+function refreshInvTotals(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  const vr=inv.vatRate||0;
+  const vatEnabled=inv.vatEnabled||(vr>0);
+  const tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
+  const vat=vatEnabled?tU*vr/100:0;
+  // Update VAT label
+  const vatLbl=document.getElementById('ivat-label-'+invId);
+  if(vatLbl)vatLbl.innerHTML='VAT '+(vatEnabled&&vr>0
+    ?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`
+    :'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>');
+  // Update VAT badge in the inline editor bar
+  const statusEl=document.querySelector(`#ivat-toggle-${invId}`)?.closest('[style*="background:var(--sf2)"]')?.querySelector('span[style*="color:var(--gr)"], span[style*="color:var(--ye)"]');
+  setH('ivat-'+invId,vatEnabled&&vr>0?mcT(vat):`<span style="font-size:11px;color:var(--tx3);font-family:var(--M)">—</span>`);
+  setH('isub-'+invId,mcT(tU));
+  setH('itot-'+invId,mcT(tU+vat,true));
+  markDirty();
+}
+
+function saveInv(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  // Sync VAT state from inline editor
+  const vatToggle=document.getElementById('ivat-toggle-'+invId);
+  if(vatToggle){
+    const checked=vatToggle.checked;
+    inv.vatEnabled=checked;
+    inv.vatRate=checked?parseFloat(document.getElementById('ivat-rate-'+invId)?.value||10):0;
+  }
+  persist();renderInvList();
+  showSyncToast('✅ Invoice saved!','success');
+}
 
 // ═══════════════════════════════════════════════
 // INVOICE EXPORT
@@ -2527,11 +2610,12 @@ function saveInv(invId){persist();renderInvList();alert('✅ Progress saved!');}
 function exportInv(invId,type){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
-  const vr=inv.vatRate||10;
+  const vr=(inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0);
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
+  const vatEnabled=inv.vatEnabled||(vr>0);
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-  const vat=tU*vr/100;
+  const vat=vatEnabled?tU*vr/100:0;
   if(type==='excel'){
     const wb=XLSX.utils.book_new();const rows=[];
     if(co.name)rows.push([co.name]);if(co.a1)rows.push([co.a1]);rows.push([]);
@@ -2564,14 +2648,15 @@ function exportInv(invId,type){
 function buildInvHtml(invId){
   const inv=ST.invoices.find(i=>i.id===invId);
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
-  const color=co.colorInv||co.color||'#1a3bcc',vr=inv.vatRate||10;
+  const color=co.colorInv||co.color||'#1a3bcc',vr=(inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0);
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
+  const vatEnabled=inv.vatEnabled||(vr>0);
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   let pU=inv.items.reduce((a,i)=>a+(i.prevAmt||0),0);
   let bGRaw=inv.items.reduce((a,i)=>a+(i.boqRawTotal||i.boqTotal||0),0);
   let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);
-  const vat=tU*vr/100;
+  const vat=vatEnabled?tU*vr/100:0;
   const discLabel=hasDisc?(disc.type==='pct'?`Discount (${disc.val}%)`:'Discount'):'';
   const boqColNote=hasDisc?`<br><span style="font-size:8px;color:rgba(255,255,255,.7)">(after ${discLabel})</span>`:'';
   let rows='';let cs='';let idx=0;
@@ -2668,7 +2753,7 @@ function buildInvHtml(invId){
 // ═══════════════════════════════════════════════
 function fillRecInvSel(){
   const sel=document.getElementById('rn-inv');sel.innerHTML='<option value="">-- Select Invoice --</option>';
-  ST.invoices.forEach(inv=>{let s=inv.items.reduce((a,i)=>a+(i.amt||0),0);const t=s+s*(inv.vatRate||10)/100;
+  ST.invoices.forEach(inv=>{let s=inv.items.reduce((a,i)=>a+(i.amt||0),0);const t=s+s*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
     sel.innerHTML+=`<option value="${inv.id}">${inv.num} – ${inv.period} (${eA(t)})</option>`;});
   document.getElementById('rn-num').value=`REC-${new Date().getFullYear()}-${String(ST.receipts.length+1).padStart(3,'0')}`;
   document.getElementById('rn-date').value=new Date().toISOString().split('T')[0];
@@ -2715,7 +2800,7 @@ function renderRecList(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
     const card=document.createElement('div');card.className='card';
     card.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;flex-wrap:wrap">
@@ -2760,7 +2845,7 @@ function exportRec(recId,type){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const tot=sub+sub*(inv?.vatRate||10)/100;
+  const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
   const client=inv?.client||boq?.client||'';const project=inv?.project||boq?.project||'';
   if(type==='excel'){
     const wb=XLSX.utils.book_new();const rows=[];
@@ -2786,7 +2871,7 @@ function buildRecHtml(recId){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const tot=sub+sub*(inv?.vatRate||10)/100;
+  const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
   const client=inv?.client||boq?.client||'';const project=inv?.project||boq?.project||'';
   const color=co.colorRec||co.color||'#1a3bcc';
   let progHTML='';
@@ -2990,7 +3075,7 @@ function populateReceiptSelector(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
     const label=`${rec.num} — ${inv?.period||''} · ${inv?.client||boq?.client||''} · ${fa(cv(tot))}`;
     sel.innerHTML+=`<option value="${rec.id}">${label}</option>`;
   });
@@ -3005,7 +3090,7 @@ function applyReceiptToFin(){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const totUSD=sub+sub*(inv?.vatRate||10)/100;
+  const totUSD=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
 
   // Fill the form fields from receipt
   document.getElementById('fin-date').value=rec.date||'';
@@ -3112,7 +3197,7 @@ function syncReceiptsToFIN(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
     if(tot<=0) return;
 
     const existing = FIN.find(f=>f.auto && f.ref===rec.id);
@@ -3304,7 +3389,7 @@ function renderDash(){
   let invoicedTotal=0,invoicedThisMonth=0,invoicedLastMonth=0;
   ST.invoices.forEach(inv=>{
     const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-    const vat=sub*(inv.vatRate||10)/100;const tot=sub+vat;
+    const vat=sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;const tot=sub+vat;
     invoicedTotal+=tot;
     if(inv.date.startsWith(thisMonth))invoicedThisMonth+=tot;
     if(inv.date.startsWith(lastMonthStr))invoicedLastMonth+=tot;
@@ -3315,7 +3400,7 @@ function renderDash(){
   ST.receipts.forEach(rec=>{
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
     receivedTotal+=tot;
     if(rec.date.startsWith(thisMonth))receivedThisMonth+=tot;
     if(rec.date.startsWith(lastMonthStr))receivedLastMonth+=tot;
@@ -3349,14 +3434,14 @@ function renderDash(){
   ST.invoices.forEach(inv=>{
     const k=inv.date?.slice(0,7);if(!monthBuckets[k])return;
     if(yearSel!=='all'&&!k.startsWith(yearSel))return;
-    const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);monthBuckets[k].invoiced+=cv(sub+sub*(inv.vatRate||10)/100);
+    const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);monthBuckets[k].invoiced+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);
   });
   ST.receipts.forEach(rec=>{
     const k=rec.date?.slice(0,7);if(!monthBuckets[k])return;
     if(yearSel!=='all'&&!k.startsWith(yearSel))return;
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    monthBuckets[k].received+=cv(sub+sub*(inv?.vatRate||10)/100);
+    monthBuckets[k].received+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);
   });
   const mKeys=Object.keys(monthBuckets).sort();
   const mLabels=mKeys.map(k=>monthBuckets[k].label);
@@ -3391,11 +3476,11 @@ function renderDash(){
     projData[b.num]={label:b.project||b.num,boq:cv(sub-disc+vat),inv:0,rec:0};
   });
   ST.invoices.forEach(inv=>{
-    if(projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].inv+=cv(sub+sub*(inv.vatRate||10)/100);}
+    if(projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].inv+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);}
   });
   ST.receipts.forEach(rec=>{
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
-    if(inv&&projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].rec+=cv(sub+sub*(inv.vatRate||10)/100);}
+    if(inv&&projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].rec+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);}
   });
   const pKeys=Object.keys(projData);
   makeChart('chart-compare',{
@@ -3425,11 +3510,11 @@ function renderDash(){
     [...ST.receipts].slice(-5).reverse().forEach(rec=>{
       const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
       const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-      const tot=sub+sub*(inv?.vatRate||10)/100;
+      const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
       acts.push({icon:'✅',bg:'rgba(30,217,122,.15)',date:rec.date,desc:`Receipt ${rec.num} — ${inv?.period||''}`,sub:`Client: ${inv?.client||'—'}`,amt:tot,color:'var(--gr)'});
     });
     [...ST.invoices].slice(-5).reverse().forEach(inv=>{
-      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=sub+sub*(inv.vatRate||10)/100;
+      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
       acts.push({icon:'🧾',bg:'rgba(245,200,66,.15)',date:inv.date,desc:`Invoice ${inv.num} — ${inv.period}`,sub:`Project: ${inv.project||'—'}`,amt:tot,color:'var(--ye)'});
     });
     acts.sort((a,b)=>b.date.localeCompare(a.date));
