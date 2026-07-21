@@ -24,6 +24,14 @@ const TOKEN_HOURS = 720;   // session token expiry: 30 days
 const ADMIN_EMAIL = '';    // optional: admin alert email
 const APP_URL     = 'https://khammina.github.io/constrobill-pro/'; // your live app URL
 
+// A single Google Sheets cell holds a maximum of 50,000 characters.
+// Saved data (which includes base64 logos / QR images) is split into
+// chunks below that limit and reassembled on load.
+const MAX_CELL  = 45000;
+// Chunk values are prefixed so Sheets never interprets them as a formula
+// (a chunk boundary can easily land on a leading '=', '+', '-' or '@').
+const CHUNK_TAG = '~';
+
 // ── SHEET NAMES ──────────────────────────────────────────────────────
 const S_USERS    = 'Users';
 const S_SESSIONS = 'Sessions';
@@ -47,6 +55,7 @@ function doPost(e) {
     logAction(action, body.email || body.token || '?');
 
     const handlers = {
+      ping:          () => ({ok:true, service:'ConstroBill API', version:'2.0'}),
       register:      () => handleRegister(body),
       login:         () => handleLogin(body),
       googleLogin:   () => handleGoogleLogin(body),
@@ -108,7 +117,14 @@ function initSheets() {
   ensureSheet(S_RESETS,   ['token','email','createdAt','expiresAt','used']);
   ensureSheet(S_LOGS,     ['timestamp','action','email','ip','detail']);
 
-  SpreadsheetApp.getUi().alert('✅ ConstroBill sheets initialized successfully!');
+  notify('✅ ConstroBill sheets initialized successfully!');
+}
+
+// getUi() throws when the script runs from a trigger or the API rather than
+// from the Sheets menu — fall back to the execution log.
+function notify(msg) {
+  try { SpreadsheetApp.getUi().alert(msg); }
+  catch(e) { Logger.log(msg); }
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────
@@ -180,7 +196,14 @@ function hashPassword(pass) {
 function nowISO()   { return new Date().toISOString(); }
 function addHours(h){ return new Date(Date.now() + h*3600000).toISOString(); }
 
+// Only auth-level events are audited. saveData/loadData fire on every
+// autosave — logging those made the AuditLog sheet grow without bound and
+// added a full sheet write to the critical path of every single sync.
+const AUDITED = ['register','login','googleLogin','forgotPassword',
+                 'resetPassword','deleteAccount','ERROR'];
+
 function logAction(action, detail) {
+  if (AUDITED.indexOf(action) === -1) return;
   try {
     appendRow(S_LOGS, {
       timestamp: nowISO(),
@@ -280,14 +303,8 @@ function handleValidateToken(body) {
   const {token} = body;
   if (!token) return {ok:false, error:'No token'};
 
-  const sessions = getAllRows(S_SESSIONS);
-  const session  = sessions.find(s => s.token === token);
-
-  if (!session) return {ok:false, error:'Invalid session'};
-  if (new Date(session.expiresAt) < new Date()) {
-    deleteRow(S_SESSIONS, 'token', token);
-    return {ok:false, error:'Session expired'};
-  }
+  const session = findSession(token);
+  if (!session) return {ok:false, error:'Session expired or invalid'};
 
   // Refresh last used
   updateRow(S_SESSIONS, 'token', token, {lastUsed: nowISO()});
@@ -408,70 +425,159 @@ function handleResetPassword(body) {
   return {ok:true};
 }
 
+// ── SESSION LOOKUP ────────────────────────────────────────────────────
+// Reads only the columns it needs instead of pulling the whole sheet.
+function findSession(token) {
+  if (!token) return null;
+  const sheet = getSheet(S_SESSIONS);
+  const last  = sheet.getLastRow();
+  if (last < 2) return null;
+
+  // token | userId | email | createdAt | expiresAt
+  const vals = sheet.getRange(2, 1, last - 1, 5).getValues();
+  for (let i = 0; i < vals.length; i++) {
+    if (String(vals[i][0]) !== String(token)) continue;
+    if (new Date(vals[i][4]) < new Date()) return null; // expired
+    return {
+      row: i + 2,
+      token: String(vals[i][0]),
+      userId: String(vals[i][1]),
+      email: String(vals[i][2])
+    };
+  }
+  return null;
+}
+
+// ── USERDATA INDEX ────────────────────────────────────────────────────
+// Returns {row, userId, dataKey} for every UserData row WITHOUT reading the
+// dataValue column. Reading dataValue meant pulling every user's entire
+// JSON blob (megabytes, including base64 images) on every save and load,
+// which is what pushed requests past the Apps Script execution limit.
+function dataIndex(sheet) {
+  const last = sheet.getLastRow();
+  if (last < 2) return [];
+  const vals = sheet.getRange(2, 1, last - 1, 3).getValues(); // userId | email | dataKey
+  const out = [];
+  for (let i = 0; i < vals.length; i++) {
+    out.push({row: i + 2, userId: String(vals[i][0]), dataKey: String(vals[i][2])});
+  }
+  return out;
+}
+
+// All rows belonging to one user + key, in chunk order.
+// Matches both the new chunked form ("main::0") and the legacy single-row
+// form ("main") written by v1 of this script.
+function findDataRows(index, userId, key) {
+  const rows = index.filter(r =>
+    r.userId === userId && (r.dataKey === key || r.dataKey.indexOf(key + '::') === 0)
+  );
+  rows.forEach(r => {
+    const sep = r.dataKey.indexOf('::');
+    r.chunk = sep === -1 ? 0 : (parseInt(r.dataKey.slice(sep + 2), 10) || 0);
+  });
+  rows.sort((a, b) => a.chunk - b.chunk);
+  return rows;
+}
+
 // ── SAVE USER DATA ────────────────────────────────────────────────────
 function handleSaveData(body) {
   const {token, key, value} = body;
-  if (!token||!key) return {ok:false, error:'Missing token or key'};
+  if (!token || !key) return {ok:false, error:'Missing token or key'};
 
-  // Validate session
-  const sessions = getAllRows(S_SESSIONS);
-  const session  = sessions.find(s => s.token === token);
-  if (!session || new Date(session.expiresAt) < new Date()) {
-    return {ok:false, error:'Invalid or expired session'};
+  const session = findSession(token);
+  if (!session) return {ok:false, error:'Invalid or expired session'};
+
+  // Two devices saving at once used to interleave their row writes and
+  // corrupt the stored JSON. Serialise writes.
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(25000); }
+  catch(e) { return {ok:false, error:'Server is busy — please try again'}; }
+
+  try {
+    const sheet  = getSheet(S_DATA);
+    const userId = session.userId;
+    const email  = session.email;
+    const str    = JSON.stringify(value);
+    const now    = nowISO();
+
+    // Split into cell-sized chunks
+    const chunks = [];
+    for (let i = 0; i < str.length; i += MAX_CELL) {
+      chunks.push(CHUNK_TAG + str.substr(i, MAX_CELL));
+    }
+    if (!chunks.length) chunks.push(CHUNK_TAG);
+
+    const existing = findDataRows(dataIndex(sheet), userId, key);
+
+    // 1. Overwrite the rows we can reuse
+    const reuse = Math.min(existing.length, chunks.length);
+    for (let i = 0; i < reuse; i++) {
+      sheet.getRange(existing[i].row, 1, 1, 6).setValues([[
+        userId, email, key + '::' + i, chunks[i], now, chunks[i].length
+      ]]);
+    }
+
+    // 2. Append any chunks that did not fit in existing rows
+    if (chunks.length > existing.length) {
+      const extra = [];
+      for (let i = existing.length; i < chunks.length; i++) {
+        extra.push([userId, email, key + '::' + i, chunks[i], now, chunks[i].length]);
+      }
+      sheet.getRange(sheet.getLastRow() + 1, 1, extra.length, 6).setValues(extra);
+    }
+
+    // 3. Drop rows left over from a previously larger payload
+    //    (descending, so earlier row numbers stay valid)
+    for (let i = existing.length - 1; i >= chunks.length; i--) {
+      sheet.deleteRow(existing[i].row);
+    }
+
+    SpreadsheetApp.flush();
+    return {ok:true, savedAt:now, sizeBytes:str.length, chunks:chunks.length};
+
+  } catch(err) {
+    logAction('ERROR', 'saveData: ' + err.message);
+    return {ok:false, error:'Save failed: ' + err.message};
+  } finally {
+    lock.releaseLock();
   }
-
-  const userId      = session.userId;
-  const email       = session.email;
-  const dataStr     = JSON.stringify(value);
-  const sizeBytes   = dataStr.length;
-  const allData     = getAllRows(S_DATA);
-  const existing    = allData.find(d => d.userId === userId && d.dataKey === key);
-
-  if (existing) {
-    updateRow(S_DATA, 'userId', userId, {
-      dataValue: dataStr,
-      savedAt:   nowISO(),
-      sizeBytes
-    });
-  } else {
-    appendRow(S_DATA, {
-      userId, email, dataKey:key,
-      dataValue:dataStr, savedAt:nowISO(), sizeBytes
-    });
-  }
-
-  return {ok:true, savedAt:nowISO(), sizeBytes};
 }
 
 // ── LOAD USER DATA ────────────────────────────────────────────────────
 function handleLoadData(body) {
   const {token, key} = body;
-  if (!token||!key) return {ok:false, error:'Missing token or key'};
+  if (!token || !key) return {ok:false, error:'Missing token or key'};
 
-  const sessions = getAllRows(S_SESSIONS);
-  const session  = sessions.find(s => s.token === token);
-  if (!session || new Date(session.expiresAt) < new Date()) {
-    return {ok:false, error:'Invalid or expired session'};
+  const session = findSession(token);
+  if (!session) return {ok:false, error:'Invalid or expired session'};
+
+  const sheet = getSheet(S_DATA);
+  const rows  = findDataRows(dataIndex(sheet), session.userId, key);
+  if (!rows.length) return {ok:true, value:null};
+
+  let str = '';
+  for (let i = 0; i < rows.length; i++) {
+    let cell = String(sheet.getRange(rows[i].row, 4).getValue());
+    // Legacy rows (dataKey with no "::") were stored untagged
+    if (cell.charAt(0) === CHUNK_TAG) cell = cell.slice(1);
+    str += cell;
   }
 
-  const userId  = session.userId;
-  const allData = getAllRows(S_DATA);
-  const row     = allData.find(d => d.userId === userId && d.dataKey === key);
-
-  if (!row) return {ok:true, value:null};
+  if (!str) return {ok:true, value:null};
 
   try {
-    return {ok:true, value:JSON.parse(row.dataValue)};
+    return {ok:true, value:JSON.parse(str)};
   } catch(e) {
-    return {ok:false, error:'Data parse error'};
+    // Never silently hand back half a payload — the client would then
+    // overwrite good cloud data with a partial merge.
+    return {ok:false, error:'Stored data is corrupted and could not be read'};
   }
 }
 
 // ── DELETE ACCOUNT ───────────────────────────────────────────────────
 function handleDeleteAccount(body) {
   const {token} = body;
-  const sessions = getAllRows(S_SESSIONS);
-  const session  = sessions.find(s => s.token === token);
+  const session = findSession(token);
   if (!session) return {ok:false, error:'Invalid session'};
 
   deleteRow(S_SESSIONS, 'userId', session.userId);
@@ -568,28 +674,60 @@ function handleGoogleOAuth(e) {
 
 // ── MAINTENANCE: CLEANUP EXPIRED SESSIONS ────────────────────────────
 function cleanupExpiredSessions() {
-  const sessions = getAllRows(S_SESSIONS);
   const now = new Date();
-  sessions.forEach(s => {
-    if (new Date(s.expiresAt) < now) {
-      deleteRow(S_SESSIONS, 'token', s.token);
+
+  // Collect the row numbers first, then delete bottom-up in one pass.
+  // The old version re-read the entire sheet for every single deletion.
+  function purge(sheetName, keepFn) {
+    const sheet = getSheet(sheetName);
+    const last  = sheet.getLastRow();
+    if (last < 2) return;
+    const vals = sheet.getRange(2, 1, last - 1, sheet.getLastColumn()).getValues();
+    for (let i = vals.length - 1; i >= 0; i--) {
+      if (!keepFn(vals[i])) sheet.deleteRow(i + 2);
     }
-  });
-  // Also clean used reset tokens older than 24h
-  const resets = getAllRows(S_RESETS);
-  resets.forEach(r => {
-    if (r.used === 'true' && new Date(r.expiresAt) < now) {
-      deleteRow(S_RESETS, 'token', r.token);
-    }
-  });
+  }
+
+  // Sessions: token | userId | email | createdAt | expiresAt
+  purge(S_SESSIONS, row => new Date(row[4]) >= now);
+  // Resets: token | email | createdAt | expiresAt | used
+  purge(S_RESETS, row => !(String(row[4]) === 'true' || new Date(row[3]) < now));
 }
 
 // ── TRIGGER: Set up daily cleanup ────────────────────────────────────
 function setupDailyCleanup() {
+  // Remove any previous copy so re-running does not stack up triggers
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'cleanupExpiredSessions') ScriptApp.deleteTrigger(t);
+  });
   ScriptApp.newTrigger('cleanupExpiredSessions')
     .timeBased()
     .everyDays(1)
     .atHour(3)
     .create();
-  SpreadsheetApp.getUi().alert('✅ Daily cleanup trigger created!');
+  notify('✅ Daily cleanup trigger created!');
+}
+
+// ── MAINTENANCE: TRIM THE AUDIT LOG ──────────────────────────────────
+// Earlier versions logged every autosave, so this sheet can be enormous.
+// Run once to cut it back to the most recent 2,000 entries.
+function trimAuditLog() {
+  const sheet = getSheet(S_LOGS);
+  const keep  = 2000;
+  const last  = sheet.getLastRow();
+  if (last <= keep + 1) { notify('AuditLog is already small (' + (last - 1) + ' rows).'); return; }
+  sheet.deleteRows(2, last - 1 - keep);
+  notify('✅ AuditLog trimmed to the most recent ' + keep + ' entries.');
+}
+
+// ── MAINTENANCE: REPORT STORAGE USE PER USER ─────────────────────────
+function reportStorage() {
+  const sheet = getSheet(S_DATA);
+  const last  = sheet.getLastRow();
+  if (last < 2) { notify('No user data stored yet.'); return; }
+  const vals = sheet.getRange(2, 1, last - 1, 6).getValues();
+  const per  = {};
+  vals.forEach(r => { per[r[1] || r[0]] = (per[r[1] || r[0]] || 0) + (Number(r[5]) || 0); });
+  const lines = Object.keys(per).map(k => k + ': ' + Math.round(per[k] / 1024) + ' KB');
+  notify('Storage per user:\n' + lines.join('\n'));
 }

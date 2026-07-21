@@ -13,6 +13,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Script fonts for the Lao / Thai / Chinese interface and documents -->
+<link id="lang-fonts" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0d0f1a;--sf:#151827;--sf2:#1e2236;--sf3:#272b42;
@@ -217,6 +219,18 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
 .inv-tree-item:hover .inv-tree-actions,.inv-tree-item.active .inv-tree-actions{opacity:1;}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
+/* Invoice progress entry — % and amount are both editable */
+.pct-in,.amt-in{display:inline-flex;align-items:center;gap:2px;justify-content:flex-end;
+  background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:0 5px;transition:border-color .15s,box-shadow .15s;}
+.pct-in:focus-within,.amt-in:focus-within{border-color:var(--ac);box-shadow:0 0 0 2px rgba(79,124,255,.18);}
+.pct-in>input,.amt-in>input{width:60px;text-align:right;background:transparent;border:none;outline:none;
+  padding:4px 0;font-family:var(--M);font-size:12px;font-weight:600;color:var(--tx);}
+.amt-in>input{width:86px;}
+.pct-in>input::-webkit-outer-spin-button,.pct-in>input::-webkit-inner-spin-button,
+.amt-in>input::-webkit-outer-spin-button,.amt-in>input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.pct-in>span,.amt-in>span{font-size:11px;color:var(--tx3);font-weight:700;flex-shrink:0;}
+.amt-alt{font-size:10px;color:var(--tx3);font-family:var(--M);text-align:right;margin-top:2px;}
+
 .theme-swatch{border-radius:9px;padding:10px 8px;cursor:pointer;border:2px solid transparent;transition:all .2s;text-align:center;}
 .theme-swatch:hover{border-color:var(--ac);transform:translateY(-2px);}
 .theme-swatch.active-theme{border-color:var(--gr)!important;box-shadow:0 0 0 3px rgba(30,217,122,.2);}
@@ -242,9 +256,434 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
 .act-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
 .act-desc{flex:1;}
 .act-amt{font-family:var(--M);font-size:13px;font-weight:700;text-align:right;}
+/* Language picker */
+.lang-pick{display:flex;align-items:center;gap:5px;background:var(--sf2);border:1px solid var(--bd);
+  border-radius:7px;padding:2px 4px 2px 8px;}
+.lang-pick>span{font-size:13px;line-height:1;}
+.lang-pick>select{background:transparent;border:none;outline:none;color:var(--tx2);font-family:var(--F);
+  font-size:12px;font-weight:600;cursor:pointer;padding:3px 2px;}
+.lang-pick>select option{background:var(--sf2);color:var(--tx);}
 </style>
 </head>
 <body>
+
+<!-- ═══════════ LANGUAGE (i18n) ═══════════ -->
+<script>
+// ─────────────────────────────────────────────────────────────────────
+//  Four languages: English, Lao, Thai, Chinese (Simplified).
+//  Translations are keyed by the English source string, so existing
+//  markup and code keep reading naturally and any string with no entry
+//  simply falls back to English.
+// ─────────────────────────────────────────────────────────────────────
+const LANGS = {
+  en: {name:'English',  flag:'🇬🇧', font:''},
+  lo: {name:'ລາວ',      flag:'🇱🇦', font:"'Noto Sans Lao',"},
+  th: {name:'ไทย',      flag:'🇹🇭', font:"'Noto Sans Thai',"},
+  zh: {name:'中文',      flag:'🇨🇳', font:"'Noto Sans SC',"}
+};
+
+const I18N = {
+// ══════════════════════════════ LAO ══════════════════════════════════
+lo:{
+// — Documents —
+'Bill of Quotation':'ໃບສະເໜີລາຄາ','BOQ':'ໃບສະເໜີລາຄາ','QUOTATION':'ໃບສະເໜີລາຄາ',
+'Invoice':'ໃບແຈ້ງໜີ້','INVOICE':'ໃບແຈ້ງໜີ້','Progress Invoice':'ໃບແຈ້ງໜີ້ຕາມຄວາມຄືບໜ້າ',
+'Receipt':'ໃບຮັບເງິນ','RECEIPT':'ໃບຮັບເງິນ','Received Bill':'ໃບຮັບເງິນ',
+'No.':'ລຳດັບ','Description':'ລາຍລະອຽດ','Unit':'ຫົວໜ່ວຍ','Qty':'ຈຳນວນ','Quantity':'ຈຳນວນ',
+'Unit Price':'ລາຄາຫົວໜ່ວຍ','Amount':'ຈຳນວນເງິນ','Total':'ລວມ','Subtotal':'ລວມຍ່ອຍ',
+'Discount':'ສ່ວນຫຼຸດ','VAT':'ອາກອນມູນຄ່າເພີ່ມ','VAT / Tax':'ອາກອນ','GRAND TOTAL':'ລວມທັງໝົດ',
+'INVOICE TOTAL':'ລວມໃບແຈ້ງໜີ້','TOTAL RECEIVED':'ລວມເງິນທີ່ຮັບ','Excluded':'ບໍ່ລວມ',
+'Date':'ວັນທີ','Client':'ລູກຄ້າ','Project':'ໂຄງການ','Location':'ສະຖານທີ່',
+'Prepared By':'ຜູ້ຈັດທຳ','Currency':'ສະກຸນເງິນ','Period':'ໄລຍະເວລາ','BOQ Ref.':'ອ້າງອີງ BOQ',
+'Invoice Ref.':'ອ້າງອີງໃບແຈ້ງໜີ້','Contract Value':'ມູນຄ່າສັນຍາ','Previous':'ຄັ້ງກ່ອນ',
+'Cumulative':'ສະສົມ','Remaining':'ຍັງເຫຼືອ','Remain':'ຍັງເຫຼືອ','Balance':'ຍອດຄົງເຫຼືອ',
+'Previous Invoiced':'ແຈ້ງໜີ້ຄັ້ງກ່ອນ','This Invoice':'ໃບແຈ້ງໜີ້ນີ້','Completion':'ຄວາມຄືບໜ້າ',
+'Scope of Work':'ຂອບເຂດວຽກງານ','Terms & Conditions':'ເງື່ອນໄຂ ແລະ ຂໍ້ກຳນົດ','Notes':'ໝາຍເຫດ',
+'PAYMENT INSTRUCTIONS':'ຂໍ້ມູນການຊຳລະເງິນ','Payment Instructions':'ຂໍ້ມູນການຊຳລະເງິນ',
+'Method':'ວິທີການ','Bank':'ທະນາຄານ','Account Name':'ຊື່ບັນຊີ','Account No.':'ເລກບັນຊີ',
+'QR PAYMENT':'ຊຳລະຜ່ານ QR','QR Payment':'ຊຳລະຜ່ານ QR','Received By':'ຜູ້ຮັບເງິນ',
+'Payment Method':'ວິທີການຊຳລະ','Remarks':'ໝາຍເຫດ','Reference':'ເອກະສານອ້າງອີງ',
+'Authorized Signature & Stamp':'ລາຍເຊັນ ແລະ ຕາປະທັບ','Client Acknowledgment':'ການຮັບຮູ້ຂອງລູກຄ້າ',
+'Exchange Rates':'ອັດຕາແລກປ່ຽນ','Printed':'ພິມວັນທີ','Tel':'ໂທ','Tax ID':'ເລກຜູ້ເສຍອາກອນ',
+'Lic':'ໃບອະນຸຍາດ','Section Total':'ລວມໝວດ','Included in contract value':'ລວມຢູ່ໃນມູນຄ່າສັນຍາແລ້ວ',
+'Project Progress':'ຄວາມຄືບໜ້າໂຄງການ','Cumulative Invoiced':'ແຈ້ງໜີ້ສະສົມ','Amount Received':'ຈຳນວນເງິນທີ່ຮັບ',
+'PAYMENT ACCOUNT DETAILS':'ລາຍລະອຽດບັນຊີຮັບເງິນ','PAYMENT VERIFIED':'ຢືນຢັນການຊຳລະແລ້ວ',
+'TOTAL AMOUNT RECEIVED':'ຈຳນວນເງິນທີ່ຮັບທັງໝົດ','Authorized Signature':'ລາຍເຊັນຜູ້ມີອຳນາດ','Work Period':'ໄລຍະວຽກ','BOQ Total':'ລວມ BOQ','This %':'ຄັ້ງນີ້ %','This Amt':'ຈຳນວນຄັ້ງນີ້',
+'Cum %':'ສະສົມ %','Cum Amt':'ຈຳນວນສະສົມ','after discount':'ຫຼັງຫັກສ່ວນຫຼຸດ',
+'Select Invoice':'ເລືອກໃບແຈ້ງໜີ້','Select BOQ':'ເລືອກ BOQ','Select a receipt':'ເລືອກໃບຮັບເງິນ',
+'Select a profile':'ເລືອກໂປຣໄຟລ໌','Select or type':'ເລືອກ ຫຼື ພິມ','No clients yet':'ຍັງບໍ່ມີລູກຄ້າ',
+'Bank Transfer':'ໂອນຜ່ານທະນາຄານ','Cash':'ເງິນສົດ','Cheque':'ເຊັກ','Other':'ອື່ນໆ',
+// — Navigation & pages —
+'Dashboard':'ພາບລວມ','Finance':'ການເງິນ','Company':'ບໍລິສັດ','Clients':'ລູກຄ້າ',
+'Payment':'ການຊຳລະເງິນ','Signature':'ລາຍເຊັນ','Theme':'ຮູບແບບສີ','Settings':'ຕັ້ງຄ່າ',
+'Language':'ພາສາ','Finance Tracker':'ຕິດຕາມການເງິນ','Work Items':'ລາຍການວຽກ',
+'Project Information':'ຂໍ້ມູນໂຄງການ','Recent Activity':'ກິດຈະກຳລ່າສຸດ','Entries':'ລາຍການ',
+'Create, save & manage quotations':'ສ້າງ, ບັນທຶກ ແລະ ຈັດການໃບສະເໜີລາຄາ',
+'Progress billing based on BOQ — organised by project':'ແຈ້ງໜີ້ຕາມຄວາມຄືບໜ້າຈາກ BOQ — ຈັດຕາມໂຄງການ',
+'Payment receipts — saved history':'ໃບຮັບເງິນ — ປະຫວັດທີ່ບັນທຶກໄວ້',
+'Project & financial overview at a glance':'ພາບລວມໂຄງການ ແລະ ການເງິນ',
+'Track income, investments, net balance — month by month':'ຕິດຕາມລາຍຮັບ, ການລົງທຶນ ແລະ ຍອດສຸດທິ ໃນແຕ່ລະເດືອນ',
+// — Buttons & actions —
+'Save':'ບັນທຶກ','Cancel':'ຍົກເລີກ','Delete':'ລຶບ','Close':'ປິດ','Clear':'ລ້າງ','Edit':'ແກ້ໄຂ',
+'Remove':'ເອົາອອກ','Upload':'ອັບໂຫລດ','Preview':'ເບິ່ງຕົວຢ່າງ','History':'ປະຫວັດ',
+'Refresh':'ໂຫລດຄືນ','Print / PDF':'ພິມ / PDF','Save BOQ':'ບັນທຶກ BOQ','Save Entry':'ບັນທຶກລາຍການ',
+'Save Client':'ບັນທຶກລູກຄ້າ','Save Profile':'ບັນທຶກໂປຣໄຟລ໌','Save Signature':'ບັນທຶກລາຍເຊັນ',
+'Save All Settings':'ບັນທຶກການຕັ້ງຄ່າທັງໝົດ','New Invoice':'ໃບແຈ້ງໜີ້ໃໝ່','New Receipt':'ໃບຮັບເງິນໃໝ່',
+'Add Section':'ເພີ່ມໝວດ','Add Term':'ເພີ່ມເງື່ອນໄຂ','Add Entry':'ເພີ່ມລາຍການ','New Profile':'ໂປຣໄຟລ໌ໃໝ່',
+'New Signature':'ລາຍເຊັນໃໝ່','Create Invoice':'ສ້າງໃບແຈ້ງໜີ້','Create Receipt':'ສ້າງໃບຮັບເງິນ',
+'Show in export':'ສະແດງໃນເອກະສານ','Show in Export':'ສະແດງໃນເອກະສານ','Show in receipt':'ສະແດງໃນໃບຮັບເງິນ',
+'Include in invoice':'ລວມໃນໃບແຈ້ງໜີ້','Fixed':'ຄົງທີ່','editable':'ແກ້ໄຂໄດ້',
+// — Forms —
+'BOQ Number':'ເລກທີ BOQ','Invoice Number':'ເລກທີໃບແຈ້ງໜີ້','Receipt Number':'ເລກທີໃບຮັບເງິນ',
+'Invoice Date':'ວັນທີໃບແຈ້ງໜີ້','Client Name':'ຊື່ລູກຄ້າ','Project Name':'ຊື່ໂຄງການ',
+'Input Currency':'ສະກຸນເງິນທີ່ປ້ອນ','Type':'ປະເພດ','Category':'ໝວດ','Converted':'ແປງແລ້ວ','Source':'ແຫລ່ງ',
+'Company Name':'ຊື່ບໍລິສັດ','Tagline':'ຄຳຂວັນ','Address':'ທີ່ຢູ່','Address 1':'ທີ່ຢູ່ 1','Address 2':'ທີ່ຢູ່ 2',
+'Phone':'ໂທລະສັບ','Email':'ອີເມວ','Website':'ເວັບໄຊ','Tax / Business ID':'ເລກທະບຽນອາກອນ',
+'Contact Person':'ຜູ້ຕິດຕໍ່','Bank Name':'ຊື່ທະນາຄານ','Account Number':'ເລກບັນຊີ',
+'Additional Notes':'ໝາຍເຫດເພີ່ມເຕີມ','QR Code':'ລະຫັດ QR','Payment Type':'ປະເພດການຊຳລະ',
+'Profile Name / Label':'ຊື່ໂປຣໄຟລ໌','Profile Label':'ຊື່ໂປຣໄຟລ໌','Full Name':'ຊື່ ແລະ ນາມສະກຸນ',
+'Title / Position':'ຕຳແໜ່ງ','License / Reg. No.':'ເລກໃບອະນຸຍາດ','Name':'ຊື່',
+'Work Period / Description':'ໄລຍະວຽກ / ລາຍລະອຽດ','Based on BOQ':'ອີງຕາມ BOQ','Based on Invoice':'ອີງຕາມໃບແຈ້ງໜີ້',
+'Bank / Account Reference':'ອ້າງອີງທະນາຄານ / ບັນຊີ','All Currencies':'ທຸກສະກຸນເງິນ','All Projects':'ທຸກໂຄງການ',
+'All Types':'ທຸກປະເພດ','All Time':'ທັງໝົດ','Income':'ລາຍຮັບ','Investment':'ການລົງທຶນ','Expense':'ລາຍຈ່າຍ',
+'Net':'ສຸດທິ','Cash Flow':'ກະແສເງິນສົດ','Entry Type':'ປະເພດລາຍການ',
+// — Auth —
+'Sign In':'ເຂົ້າສູ່ລະບົບ','Register':'ລົງທະບຽນ','Sign out':'ອອກຈາກລະບົບ','Password':'ລະຫັດຜ່ານ',
+'Email Address':'ທີ່ຢູ່ອີເມວ','Confirm Password':'ຢືນຢັນລະຫັດຜ່ານ','First Name':'ຊື່','Last Name':'ນາມສະກຸນ',
+'Remember me':'ຈື່ຂ້ອຍໄວ້','Forgot password':'ລືມລະຫັດຜ່ານ','Create Account':'ສ້າງບັນຊີ',
+'Send Reset Link':'ສົ່ງລິ້ງຣີເຊັດ','or continue with':'ຫຼືເຂົ້າສູ່ລະບົບດ້ວຍ',
+'Sign in with Google':'ເຂົ້າສູ່ລະບົບດ້ວຍ Google','Continue without account (Demo)':'ໃຊ້ງານແບບທົດລອງ (ບໍ່ຕ້ອງມີບັນຊີ)',
+'Construction Billing Management System':'ລະບົບຈັດການໃບແຈ້ງໜີ້ກໍ່ສ້າງ',
+// — Sync & messages —
+'Saved to cloud':'ບັນທຶກຂຶ້ນຄລາວແລ້ວ','Syncing…':'ກຳລັງຊິງຄ໌…','Waiting to sync…':'ລໍຖ້າຊິງຄ໌…',
+'Sync failed':'ຊິງຄ໌ບໍ່ສຳເລັດ','click to retry':'ກົດເພື່ອລອງໃໝ່',
+'Offline — saved on this device only':'ອອບລາຍ — ບັນທຶກໃນເຄື່ອງນີ້ເທົ່ານັ້ນ',
+'Browser storage is full':'ພື້ນທີ່ເກັບຂໍ້ມູນຂອງບຣາວເຊີເຕັມ',
+'Progress saved!':'ບັນທຶກຄວາມຄືບໜ້າແລ້ວ!','Sign out of ConstroBill?':'ອອກຈາກລະບົບ ConstroBill?',
+'Some changes could not be uploaded.':'ບາງການປ່ຽນແປງອັບໂຫລດບໍ່ສຳເລັດ.','Sign out anyway?':'ຕ້ອງການອອກຈາກລະບົບຢູ່ບໍ?',
+'Enter % — amount is calculated':'ປ້ອນ % — ຈຳນວນເງິນຈະຄິດໄລ່ໃຫ້ອັດຕະໂນມັດ',
+'Enter amount — % is calculated':'ປ້ອນຈຳນວນເງິນ — % ຈະຄິດໄລ່ໃຫ້ອັດຕະໂນມັດ',
+'Type a percentage and the amount fills in automatically — or type an amount and the percentage is worked out for you.':
+  'ພິມເປີເຊັນແລ້ວຈຳນວນເງິນຈະຖືກຕື່ມໃຫ້ອັດຕະໂນມັດ — ຫຼືພິມຈຳນວນເງິນແລ້ວເປີເຊັນຈະຖືກຄິດໄລ່ໃຫ້',
+'No invoices yet':'ຍັງບໍ່ມີໃບແຈ້ງໜີ້','No receipts yet':'ຍັງບໍ່ມີໃບຮັບເງິນ',
+'Select a project and invoice':'ເລືອກໂຄງການ ແລະ ໃບແຈ້ງໜີ້'
+},
+// ══════════════════════════════ THAI ═════════════════════════════════
+th:{
+// — Documents —
+'Bill of Quotation':'ใบเสนอราคา','BOQ':'ใบเสนอราคา','QUOTATION':'ใบเสนอราคา',
+'Invoice':'ใบแจ้งหนี้','INVOICE':'ใบแจ้งหนี้','Progress Invoice':'ใบแจ้งหนี้ตามความคืบหน้า',
+'Receipt':'ใบเสร็จรับเงิน','RECEIPT':'ใบเสร็จรับเงิน','Received Bill':'ใบเสร็จรับเงิน',
+'No.':'ลำดับ','Description':'รายละเอียด','Unit':'หน่วย','Qty':'จำนวน','Quantity':'จำนวน',
+'Unit Price':'ราคาต่อหน่วย','Amount':'จำนวนเงิน','Total':'รวม','Subtotal':'รวมย่อย',
+'Discount':'ส่วนลด','VAT':'ภาษีมูลค่าเพิ่ม','VAT / Tax':'ภาษี','GRAND TOTAL':'รวมทั้งสิ้น',
+'INVOICE TOTAL':'รวมใบแจ้งหนี้','TOTAL RECEIVED':'รวมเงินที่รับ','Excluded':'ไม่รวม',
+'Date':'วันที่','Client':'ลูกค้า','Project':'โครงการ','Location':'สถานที่',
+'Prepared By':'ผู้จัดทำ','Currency':'สกุลเงิน','Period':'งวดงาน','BOQ Ref.':'อ้างอิง BOQ',
+'Invoice Ref.':'อ้างอิงใบแจ้งหนี้','Contract Value':'มูลค่าสัญญา','Previous':'ครั้งก่อน',
+'Cumulative':'สะสม','Remaining':'คงเหลือ','Remain':'คงเหลือ','Balance':'ยอดคงเหลือ',
+'Previous Invoiced':'แจ้งหนี้ครั้งก่อน','This Invoice':'ใบแจ้งหนี้นี้','Completion':'ความคืบหน้า',
+'Scope of Work':'ขอบเขตงาน','Terms & Conditions':'ข้อกำหนดและเงื่อนไข','Notes':'หมายเหตุ',
+'PAYMENT INSTRUCTIONS':'ข้อมูลการชำระเงิน','Payment Instructions':'ข้อมูลการชำระเงิน',
+'Method':'วิธีการ','Bank':'ธนาคาร','Account Name':'ชื่อบัญชี','Account No.':'เลขที่บัญชี',
+'QR PAYMENT':'ชำระผ่าน QR','QR Payment':'ชำระผ่าน QR','Received By':'ผู้รับเงิน',
+'Payment Method':'วิธีการชำระเงิน','Remarks':'หมายเหตุ','Reference':'เอกสารอ้างอิง',
+'Authorized Signature & Stamp':'ลายเซ็นและตราประทับ','Client Acknowledgment':'การรับทราบของลูกค้า',
+'Exchange Rates':'อัตราแลกเปลี่ยน','Printed':'พิมพ์เมื่อ','Tel':'โทร','Tax ID':'เลขประจำตัวผู้เสียภาษี',
+'Lic':'ใบอนุญาต','Section Total':'รวมหมวด','Included in contract value':'รวมอยู่ในมูลค่าสัญญาแล้ว',
+'Project Progress':'ความคืบหน้าโครงการ','Cumulative Invoiced':'แจ้งหนี้สะสม','Amount Received':'จำนวนเงินที่รับ',
+'PAYMENT ACCOUNT DETAILS':'รายละเอียดบัญชีรับเงิน','PAYMENT VERIFIED':'ยืนยันการชำระเงินแล้ว',
+'TOTAL AMOUNT RECEIVED':'จำนวนเงินที่รับทั้งสิ้น','Authorized Signature':'ลายเซ็นผู้มีอำนาจ','Work Period':'งวดงาน','BOQ Total':'รวม BOQ','This %':'ครั้งนี้ %','This Amt':'จำนวนครั้งนี้',
+'Cum %':'สะสม %','Cum Amt':'จำนวนสะสม','after discount':'หลังหักส่วนลด',
+'Select Invoice':'เลือกใบแจ้งหนี้','Select BOQ':'เลือก BOQ','Select a receipt':'เลือกใบเสร็จ',
+'Select a profile':'เลือกโปรไฟล์','Select or type':'เลือกหรือพิมพ์','No clients yet':'ยังไม่มีลูกค้า',
+'Bank Transfer':'โอนผ่านธนาคาร','Cash':'เงินสด','Cheque':'เช็ค','Other':'อื่นๆ',
+// — Navigation & pages —
+'Dashboard':'แดชบอร์ด','Finance':'การเงิน','Company':'บริษัท','Clients':'ลูกค้า',
+'Payment':'การชำระเงิน','Signature':'ลายเซ็น','Theme':'ธีม','Settings':'ตั้งค่า',
+'Language':'ภาษา','Finance Tracker':'ติดตามการเงิน','Work Items':'รายการงาน',
+'Project Information':'ข้อมูลโครงการ','Recent Activity':'กิจกรรมล่าสุด','Entries':'รายการ',
+'Create, save & manage quotations':'สร้าง บันทึก และจัดการใบเสนอราคา',
+'Progress billing based on BOQ — organised by project':'แจ้งหนี้ตามความคืบหน้าจาก BOQ — จัดตามโครงการ',
+'Payment receipts — saved history':'ใบเสร็จรับเงิน — ประวัติที่บันทึกไว้',
+'Project & financial overview at a glance':'ภาพรวมโครงการและการเงิน',
+'Track income, investments, net balance — month by month':'ติดตามรายรับ การลงทุน และยอดสุทธิ รายเดือน',
+// — Buttons & actions —
+'Save':'บันทึก','Cancel':'ยกเลิก','Delete':'ลบ','Close':'ปิด','Clear':'ล้าง','Edit':'แก้ไข',
+'Remove':'นำออก','Upload':'อัปโหลด','Preview':'ดูตัวอย่าง','History':'ประวัติ',
+'Refresh':'รีเฟรช','Print / PDF':'พิมพ์ / PDF','Save BOQ':'บันทึก BOQ','Save Entry':'บันทึกรายการ',
+'Save Client':'บันทึกลูกค้า','Save Profile':'บันทึกโปรไฟล์','Save Signature':'บันทึกลายเซ็น',
+'Save All Settings':'บันทึกการตั้งค่าทั้งหมด','New Invoice':'ใบแจ้งหนี้ใหม่','New Receipt':'ใบเสร็จใหม่',
+'Add Section':'เพิ่มหมวด','Add Term':'เพิ่มเงื่อนไข','Add Entry':'เพิ่มรายการ','New Profile':'โปรไฟล์ใหม่',
+'New Signature':'ลายเซ็นใหม่','Create Invoice':'สร้างใบแจ้งหนี้','Create Receipt':'สร้างใบเสร็จ',
+'Show in export':'แสดงในเอกสาร','Show in Export':'แสดงในเอกสาร','Show in receipt':'แสดงในใบเสร็จ',
+'Include in invoice':'รวมในใบแจ้งหนี้','Fixed':'คงที่','editable':'แก้ไขได้',
+// — Forms —
+'BOQ Number':'เลขที่ BOQ','Invoice Number':'เลขที่ใบแจ้งหนี้','Receipt Number':'เลขที่ใบเสร็จ',
+'Invoice Date':'วันที่ใบแจ้งหนี้','Client Name':'ชื่อลูกค้า','Project Name':'ชื่อโครงการ',
+'Input Currency':'สกุลเงินที่กรอก','Type':'ประเภท','Category':'หมวด','Converted':'แปลงแล้ว','Source':'แหล่งที่มา',
+'Company Name':'ชื่อบริษัท','Tagline':'สโลแกน','Address':'ที่อยู่','Address 1':'ที่อยู่ 1','Address 2':'ที่อยู่ 2',
+'Phone':'โทรศัพท์','Email':'อีเมล','Website':'เว็บไซต์','Tax / Business ID':'เลขประจำตัวผู้เสียภาษี',
+'Contact Person':'ผู้ติดต่อ','Bank Name':'ชื่อธนาคาร','Account Number':'เลขที่บัญชี',
+'Additional Notes':'หมายเหตุเพิ่มเติม','QR Code':'คิวอาร์โค้ด','Payment Type':'ประเภทการชำระ',
+'Profile Name / Label':'ชื่อโปรไฟล์','Profile Label':'ชื่อโปรไฟล์','Full Name':'ชื่อ-นามสกุล',
+'Title / Position':'ตำแหน่ง','License / Reg. No.':'เลขที่ใบอนุญาต','Name':'ชื่อ',
+'Work Period / Description':'งวดงาน / รายละเอียด','Based on BOQ':'อ้างอิงจาก BOQ','Based on Invoice':'อ้างอิงจากใบแจ้งหนี้',
+'Bank / Account Reference':'อ้างอิงธนาคาร / บัญชี','All Currencies':'ทุกสกุลเงิน','All Projects':'ทุกโครงการ',
+'All Types':'ทุกประเภท','All Time':'ทั้งหมด','Income':'รายรับ','Investment':'การลงทุน','Expense':'รายจ่าย',
+'Net':'สุทธิ','Cash Flow':'กระแสเงินสด','Entry Type':'ประเภทรายการ',
+// — Auth —
+'Sign In':'เข้าสู่ระบบ','Register':'ลงทะเบียน','Sign out':'ออกจากระบบ','Password':'รหัสผ่าน',
+'Email Address':'ที่อยู่อีเมล','Confirm Password':'ยืนยันรหัสผ่าน','First Name':'ชื่อ','Last Name':'นามสกุล',
+'Remember me':'จดจำฉันไว้','Forgot password':'ลืมรหัสผ่าน','Create Account':'สร้างบัญชี',
+'Send Reset Link':'ส่งลิงก์รีเซ็ต','or continue with':'หรือเข้าสู่ระบบด้วย',
+'Sign in with Google':'เข้าสู่ระบบด้วย Google','Continue without account (Demo)':'ใช้งานแบบทดลอง (ไม่ต้องมีบัญชี)',
+'Construction Billing Management System':'ระบบจัดการใบแจ้งหนี้งานก่อสร้าง',
+// — Sync & messages —
+'Saved to cloud':'บันทึกขึ้นคลาวด์แล้ว','Syncing…':'กำลังซิงค์…','Waiting to sync…':'รอซิงค์…',
+'Sync failed':'ซิงค์ไม่สำเร็จ','click to retry':'คลิกเพื่อลองใหม่',
+'Offline — saved on this device only':'ออฟไลน์ — บันทึกในเครื่องนี้เท่านั้น',
+'Browser storage is full':'พื้นที่จัดเก็บของเบราว์เซอร์เต็ม',
+'Progress saved!':'บันทึกความคืบหน้าแล้ว!','Sign out of ConstroBill?':'ออกจากระบบ ConstroBill?',
+'Some changes could not be uploaded.':'การเปลี่ยนแปลงบางส่วนอัปโหลดไม่สำเร็จ','Sign out anyway?':'ต้องการออกจากระบบหรือไม่?',
+'Enter % — amount is calculated':'กรอก % แล้วจำนวนเงินจะคำนวณให้อัตโนมัติ',
+'Enter amount — % is calculated':'กรอกจำนวนเงินแล้ว % จะคำนวณให้อัตโนมัติ',
+'Type a percentage and the amount fills in automatically — or type an amount and the percentage is worked out for you.':
+  'พิมพ์เปอร์เซ็นต์แล้วจำนวนเงินจะถูกเติมให้อัตโนมัติ — หรือพิมพ์จำนวนเงินแล้วเปอร์เซ็นต์จะถูกคำนวณให้',
+'No invoices yet':'ยังไม่มีใบแจ้งหนี้','No receipts yet':'ยังไม่มีใบเสร็จ',
+'Select a project and invoice':'เลือกโครงการและใบแจ้งหนี้'
+},
+// ═══════════════════════ CHINESE (SIMPLIFIED) ════════════════════════
+zh:{
+// — Documents —
+'Bill of Quotation':'工程量清单报价','BOQ':'工程量清单','QUOTATION':'报价单',
+'Invoice':'请款单','INVOICE':'请款单','Progress Invoice':'进度请款单',
+'Receipt':'收据','RECEIPT':'收据','Received Bill':'收款单',
+'No.':'序号','Description':'项目说明','Unit':'单位','Qty':'数量','Quantity':'数量',
+'Unit Price':'单价','Amount':'金额','Total':'合计','Subtotal':'小计',
+'Discount':'折扣','VAT':'增值税','VAT / Tax':'税金','GRAND TOTAL':'总计',
+'INVOICE TOTAL':'本期请款总额','TOTAL RECEIVED':'实收总额','Excluded':'不含',
+'Date':'日期','Client':'客户','Project':'项目','Location':'地点',
+'Prepared By':'制表人','Currency':'货币','Period':'工期','BOQ Ref.':'清单编号',
+'Invoice Ref.':'请款单编号','Contract Value':'合同金额','Previous':'上期',
+'Cumulative':'累计','Remaining':'剩余','Remain':'剩余','Balance':'余额',
+'Previous Invoiced':'上期已请款','This Invoice':'本期请款','Completion':'完成度',
+'Scope of Work':'工作范围','Terms & Conditions':'条款与条件','Notes':'备注',
+'PAYMENT INSTRUCTIONS':'付款说明','Payment Instructions':'付款说明',
+'Method':'方式','Bank':'银行','Account Name':'户名','Account No.':'账号',
+'QR PAYMENT':'扫码付款','QR Payment':'扫码付款','Received By':'收款人',
+'Payment Method':'付款方式','Remarks':'备注','Reference':'参考编号',
+'Authorized Signature & Stamp':'授权签字及盖章','Client Acknowledgment':'客户确认',
+'Exchange Rates':'汇率','Printed':'打印日期','Tel':'电话','Tax ID':'税号',
+'Lic':'执照号','Section Total':'分部小计','Included in contract value':'已计入合同金额',
+'Project Progress':'项目进度','Cumulative Invoiced':'累计已请款','Amount Received':'实收金额',
+'PAYMENT ACCOUNT DETAILS':'收款账户信息','PAYMENT VERIFIED':'付款已确认',
+'TOTAL AMOUNT RECEIVED':'实收总金额','Authorized Signature':'授权签字','Work Period':'工期','BOQ Total':'清单金额','This %':'本期 %','This Amt':'本期金额',
+'Cum %':'累计 %','Cum Amt':'累计金额','after discount':'折扣后',
+'Select Invoice':'选择请款单','Select BOQ':'选择工程量清单','Select a receipt':'选择收据',
+'Select a profile':'选择配置','Select or type':'选择或输入','No clients yet':'暂无客户',
+'Bank Transfer':'银行转账','Cash':'现金','Cheque':'支票','Other':'其他',
+// — Navigation & pages —
+'Dashboard':'仪表板','Finance':'财务','Company':'公司','Clients':'客户',
+'Payment':'付款','Signature':'签名','Theme':'主题','Settings':'设置',
+'Language':'语言','Finance Tracker':'财务追踪','Work Items':'工作项目',
+'Project Information':'项目信息','Recent Activity':'最近动态','Entries':'条目',
+'Create, save & manage quotations':'创建、保存并管理报价单',
+'Progress billing based on BOQ — organised by project':'基于工程量清单的进度请款 — 按项目归类',
+'Payment receipts — saved history':'收款收据 — 已保存的记录',
+'Project & financial overview at a glance':'项目与财务总览',
+'Track income, investments, net balance — month by month':'按月追踪收入、投资与净余额',
+// — Buttons & actions —
+'Save':'保存','Cancel':'取消','Delete':'删除','Close':'关闭','Clear':'清空','Edit':'编辑',
+'Remove':'移除','Upload':'上传','Preview':'预览','History':'历史记录',
+'Refresh':'刷新','Print / PDF':'打印 / PDF','Save BOQ':'保存清单','Save Entry':'保存条目',
+'Save Client':'保存客户','Save Profile':'保存配置','Save Signature':'保存签名',
+'Save All Settings':'保存全部设置','New Invoice':'新建请款单','New Receipt':'新建收据',
+'Add Section':'添加分部','Add Term':'添加条款','Add Entry':'添加条目','New Profile':'新建配置',
+'New Signature':'新建签名','Create Invoice':'创建请款单','Create Receipt':'创建收据',
+'Show in export':'显示在导出文件中','Show in Export':'显示在导出文件中','Show in receipt':'显示在收据中',
+'Include in invoice':'包含在请款单中','Fixed':'固定金额','editable':'可编辑',
+// — Forms —
+'BOQ Number':'清单编号','Invoice Number':'请款单编号','Receipt Number':'收据编号',
+'Invoice Date':'请款日期','Client Name':'客户名称','Project Name':'项目名称',
+'Input Currency':'录入货币','Type':'类型','Category':'类别','Converted':'折算','Source':'来源',
+'Company Name':'公司名称','Tagline':'标语','Address':'地址','Address 1':'地址一','Address 2':'地址二',
+'Phone':'电话','Email':'邮箱','Website':'网站','Tax / Business ID':'税号 / 工商登记号',
+'Contact Person':'联系人','Bank Name':'银行名称','Account Number':'账号',
+'Additional Notes':'补充说明','QR Code':'二维码','Payment Type':'付款类型',
+'Profile Name / Label':'配置名称','Profile Label':'配置名称','Full Name':'姓名',
+'Title / Position':'职务','License / Reg. No.':'执照 / 注册号','Name':'名称',
+'Work Period / Description':'工期 / 说明','Based on BOQ':'基于清单','Based on Invoice':'基于请款单',
+'Bank / Account Reference':'银行 / 账户参考','All Currencies':'所有货币','All Projects':'所有项目',
+'All Types':'所有类型','All Time':'全部时间','Income':'收入','Investment':'投资','Expense':'支出',
+'Net':'净额','Cash Flow':'现金流','Entry Type':'条目类型',
+// — Auth —
+'Sign In':'登录','Register':'注册','Sign out':'退出登录','Password':'密码',
+'Email Address':'电子邮箱','Confirm Password':'确认密码','First Name':'名','Last Name':'姓',
+'Remember me':'记住我','Forgot password':'忘记密码','Create Account':'创建账户',
+'Send Reset Link':'发送重置链接','or continue with':'或使用以下方式登录',
+'Sign in with Google':'使用 Google 登录','Continue without account (Demo)':'免注册试用（演示）',
+'Construction Billing Management System':'建筑工程计价管理系统',
+// — Sync & messages —
+'Saved to cloud':'已保存到云端','Syncing…':'同步中…','Waiting to sync…':'等待同步…',
+'Sync failed':'同步失败','click to retry':'点击重试',
+'Offline — saved on this device only':'离线 — 仅保存在本设备',
+'Browser storage is full':'浏览器存储空间已满',
+'Progress saved!':'进度已保存！','Sign out of ConstroBill?':'确定退出 ConstroBill？',
+'Some changes could not be uploaded.':'部分更改未能上传。','Sign out anyway?':'仍要退出吗？',
+'Enter % — amount is calculated':'输入百分比 — 金额自动计算',
+'Enter amount — % is calculated':'输入金额 — 百分比自动计算',
+'Type a percentage and the amount fills in automatically — or type an amount and the percentage is worked out for you.':
+  '输入百分比后金额会自动填入 — 或输入金额，百分比会自动算出。',
+'No invoices yet':'暂无请款单','No receipts yet':'暂无收据',
+'Select a project and invoice':'请选择项目和请款单'
+}
+};
+
+let LANG = 'en';
+try{ LANG = localStorage.getItem('cb_lang') || 'en'; }catch(e){}
+if(!LANGS[LANG]) LANG = 'en';
+
+// Translate one string. Falls back to English for anything not in the
+// dictionary, and keeps any leading icon / trailing punctuation intact so
+// "📊 Dashboard" and "Forgot password?" both resolve.
+function t(s){
+  if(!s) return s;
+  const str = String(s);
+  if(LANG === 'en') return str;
+  const dict = I18N[LANG];
+  if(!dict) return str;
+  if(dict[str]) return dict[str];
+  const m = str.match(/^([^\p{L}\p{N}]*)([\s\S]*?)([^\p{L}\p{N}]*)$/u);
+  if(m && m[2] && dict[m[2]]) return m[1] + dict[m[2]] + m[3];
+  return str;
+}
+
+// ── DOM TRANSLATION ──────────────────────────────────────────────────
+// Every text node keeps its original English in a WeakMap, so switching
+// languages always translates from the source rather than from whatever
+// the previous language left behind.
+const _origText = new WeakMap();
+const _origAttr = new WeakMap();
+const I18N_SKIP = {SCRIPT:1, STYLE:1, TEXTAREA:1, CANVAS:1, IFRAME:1, OPTION:0};
+
+function _tNode(node){
+  let orig = _origText.get(node);
+  if(orig === undefined){ orig = node.nodeValue; _origText.set(node, orig); }
+  const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(orig);
+  const core = m[2];
+  const out = core ? m[1] + t(core) + m[3] : orig;
+  if(node.nodeValue !== out) node.nodeValue = out;
+}
+
+function _tAttrs(el){
+  let orig = _origAttr.get(el);
+  if(orig === undefined){
+    orig = {placeholder: el.getAttribute('placeholder'), title: el.getAttribute('title')};
+    _origAttr.set(el, orig);
+  }
+  if(orig.placeholder != null) el.setAttribute('placeholder', t(orig.placeholder));
+  if(orig.title != null)       el.setAttribute('title',       t(orig.title));
+}
+
+function applyI18n(root){
+  if(!root || !document.body) return;
+  const host = root.nodeType === 1 ? root : root.parentNode;
+
+  if(root.nodeType === 3){ _tNode(root); return; }
+  if(!host || !host.querySelectorAll) return;
+
+  const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      const p = n.parentNode;
+      if(!p || I18N_SKIP[p.nodeName]) return NodeFilter.FILTER_REJECT;
+      if(!n.nodeValue || !/\S/.test(n.nodeValue)) return NodeFilter.FILTER_REJECT;
+      if(p.closest && p.closest('[data-no-i18n]')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  let n;
+  while((n = walker.nextNode())) nodes.push(n);
+  nodes.forEach(_tNode);
+
+  const attrEls = host.querySelectorAll('[placeholder],[title]');
+  attrEls.forEach(_tAttrs);
+  if(host.hasAttribute && (host.hasAttribute('placeholder') || host.hasAttribute('title'))) _tAttrs(host);
+}
+
+// Content rendered after the initial load (invoice rows, client lists,
+// modals…) is translated as it is inserted, so every dynamic view is
+// covered without touching each render function.
+let _i18nObserver = null;
+function startI18nObserver(){
+  if(_i18nObserver || !document.body) return;
+  _i18nObserver = new MutationObserver(muts => {
+    for(const mu of muts){
+      for(const node of mu.addedNodes){
+        if(node.nodeType === 1) applyI18n(node);
+        else if(node.nodeType === 3 && /\S/.test(node.nodeValue || '')) _tNode(node);
+      }
+    }
+  });
+  _i18nObserver.observe(document.body, {childList:true, subtree:true});
+}
+
+// Lao / Thai / Chinese glyphs need a font that actually has them. Prepend
+// the script font to whatever the theme picked rather than replacing it.
+function applyLangFont(){
+  const base = (typeof currentTheme !== 'undefined' && currentTheme && currentTheme.font)
+    ? currentTheme.font : "'IBM Plex Sans',sans-serif";
+  document.documentElement.style.setProperty('--F', (LANGS[LANG].font || '') + base);
+}
+
+// Font stack for exported documents (print window, preview iframe, JPEG).
+function docFontStack(){
+  return (LANGS[LANG].font || '') + "'Segoe UI',Arial,sans-serif";
+}
+function docFontLink(){
+  return LANG === 'en' ? '' :
+    '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">';
+}
+
+function setLang(code){
+  if(!LANGS[code]) return;
+  LANG = code;
+  try{ localStorage.setItem('cb_lang', code); }catch(e){}
+  document.documentElement.lang = code;
+  document.documentElement.setAttribute('data-lang', code);
+  applyLangFont();
+  applyI18n(document.body);
+  document.querySelectorAll('.lang-pick select').forEach(s => { s.value = code; });
+  document.querySelectorAll('.lang-pick > span').forEach(s => { s.textContent = LANGS[code].flag; });
+  // Views built from t() at render time need rebuilding
+  try{
+    if(typeof renderInvList === 'function') renderInvList();
+    if(typeof renderRecList === 'function') renderRecList();
+    if(typeof activeInvId !== 'undefined' && activeInvId && typeof openInv === 'function') openInv(activeInvId);
+    if(typeof markDirty === 'function') markDirty();
+  }catch(e){}
+}
+
+function langPickerHtml(){
+  const opts = Object.keys(LANGS)
+    .map(c => `<option value="${c}"${c===LANG?' selected':''}>${LANGS[c].name}</option>`).join('');
+  return `<div class="lang-pick" data-no-i18n title="Language / ພາສາ / ภาษา / 语言">
+    <span>${LANGS[LANG].flag}</span>
+    <select onchange="setLang(this.value)">${opts}</select>
+  </div>`;
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.documentElement.lang = LANG;
+  document.documentElement.setAttribute('data-lang', LANG);
+  document.querySelectorAll('.lang-slot').forEach(el => { el.innerHTML = langPickerHtml(); });
+  applyLangFont();
+  if(LANG !== 'en') applyI18n(document.body);
+  startI18nObserver();
+});
+</script>
+
 
 <!-- ═══════ LOGIN SCREEN ═══════ -->
 <div id="auth-screen" style="position:fixed;inset:0;z-index:10000;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:var(--F)">
@@ -255,6 +694,7 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
       <div style="font-size:22px;font-weight:800;color:var(--ac);letter-spacing:-1px">ConstroBill Pro</div>
       <div style="font-size:12px;color:var(--tx3);margin-top:4px">Construction Billing Management System</div>
       <div style="font-size:11px;color:var(--tx3);margin-top:3px;letter-spacing:.3px">Created by <span style="color:var(--ac);font-weight:700">Khammina</span> · SCMV</div>
+      <div class="lang-slot" style="display:flex;justify-content:center;margin-top:14px"></div>
     </div>
     <!-- AUTH CARD -->
     <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
@@ -396,15 +836,88 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
 // ─────────────────────────────────────────────────────
 // ⚠ Replace the URL below with your deployed Web App /exec URL after deployment
 // Library URL (for reference): https://script.google.com/macros/library/d/1XgwwgNrpMcljBIWxGxUvXEEy6WFvnjlSLMIq_DdnzrtsBZ-ozsQJHhmo/1
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxkFQQKLaS3ScQGJLU9roSrl2iPt2PnqL3pbewOYW3rgtAdyTq9HskcO-0CKGdk1w/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzsBbE4qzeccRx3Wn2Y3coeXI89AZiRUcA6RljL3c3zIQkrkxLQYDsbgXrf4NhsdCLA/exec';
 
 // ─────────────────────────────────────────────────────
 //  MULTI-USER DATA SYNC
 //  When GAS_URL is set: all data is saved to Google Sheets
 //  per user. Falls back to localStorage when offline.
 // ─────────────────────────────────────────────────────
-let _syncTimer = null;
+let _syncTimer   = null;
 let _syncPending = false;
+let _syncBusy    = false;
+let _syncRetry   = 0;
+let _lastSyncErr = '';
+// True once we have successfully read this account's cloud state (or
+// confirmed it is empty). Until then we must NOT push local data up, or a
+// failed load followed by an autosave would wipe the copy in the cloud.
+let _cloudLoaded = false;
+
+// Account settings live in their own localStorage keys, separate from ST.
+// Every one of these has to follow the user across devices — previously only
+// ST (BOQs / invoices / receipts) was ever uploaded, which is why company
+// details, clients, payment and signature profiles never appeared on a
+// second device.
+const SYNC_KEYS = [
+  'cb_co',            // company profile + document colours
+  'cb_pay',           // default payment instructions
+  'cb_sig',           // default signature
+  'cb_cl',            // clients
+  'cb_tc',            // terms & conditions
+  'cb_fin',           // finance tracker entries
+  'cb_theme',         // UI theme
+  'cb_rates',         // exchange rates
+  'cb_prefs',         // display preferences
+  'cb_pay_profiles',  // saved payment profiles
+  'cb_sig_profiles',  // saved signature profiles
+  'cb_lang'           // interface / document language
+];
+
+// Any write to a synced key schedules an upload. Patching setItem in one
+// place keeps every existing call site (there are ~20) working unchanged.
+// The flag suppresses the echo when we are writing keys we just downloaded.
+let _applyingBundle = false;
+(function(){
+  const _set = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(k, v){
+    _set(k, v);
+    if(!_applyingBundle && SYNC_KEYS.indexOf(k) !== -1) queueSync();
+  };
+})();
+
+function isCloudAccount(){
+  const t = authUser?.token || '';
+  return !!(GAS_URL && t && !t.startsWith('demo_') && !t.startsWith('local_'));
+}
+
+// Everything that belongs to this account, in one payload.
+function collectCloudBundle(){
+  const settings = {};
+  SYNC_KEYS.forEach(k => {
+    const v = localStorage.getItem(k);
+    if(v !== null) settings[k] = v;
+  });
+  return {v:2, savedAt:new Date().toISOString(), st:ST, settings};
+}
+
+// Accepts both the v2 bundle and the v1 payload (a bare ST object).
+function applyCloudBundle(bundle){
+  if(!bundle || typeof bundle !== 'object') return false;
+  if(!bundle.v){
+    if(bundle.boqs || bundle.invoices || bundle.receipts){ ST = bundle; return true; }
+    return false;
+  }
+  if(bundle.st) ST = bundle.st;
+  if(bundle.settings){
+    _applyingBundle = true;
+    try{
+      Object.keys(bundle.settings).forEach(k => {
+        if(SYNC_KEYS.indexOf(k) !== -1) localStorage.setItem(k, bundle.settings[k]);
+      });
+    } finally { _applyingBundle = false; }
+  }
+  return true;
+}
 
 async function gasRequest(action, payload, silent){
   if(!GAS_URL) throw new Error('GAS_URL_MISSING');
@@ -480,68 +993,163 @@ function markDirty(){
 
 function persist(){
   const key = authUser?.email ? 'cb_st3_'+btoa(authUser.email) : 'cb_st3';
-  localStorage.setItem(key, JSON.stringify(ST));
-  if(GAS_URL && authUser?.token){
-    _syncPending = true;
-    clearTimeout(_syncTimer);
-    _syncTimer = setTimeout(()=>syncToCloud(), 2000);
-    showSyncStatus('pending');
+  try{
+    localStorage.setItem(key, JSON.stringify(ST));
+  }catch(e){
+    // QuotaExceededError — usually an oversized base64 logo or QR image
+    showSyncStatus('quota');
   }
+  queueSync();
   // Notify Dashboard and Finance of data change
   markDirty();
 }
 
-async function syncToCloud(){
-  if(!authUser?.token || !GAS_URL) return;
+// Debounced upload — fires 2s after the last change.
+function queueSync(){
+  if(!isCloudAccount()) return;
+  _syncPending = true;
+  _syncRetry   = 0;
+  showSyncStatus('pending');
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(()=>syncToCloud(), 2000);
+}
+
+async function syncToCloud(manual){
+  if(!isCloudAccount()) return false;
+
+  // Refuse to upload over a cloud copy we were never able to read.
+  if(!_cloudLoaded && !manual){ showSyncStatus('blocked'); return false; }
+
+  // A save is already in flight — let it finish, then run again.
+  if(_syncBusy){ _syncPending = true; return false; }
+
+  _syncBusy = true;
+  showSyncStatus('saving');
+  clearTimeout(_syncTimer);
+
   try{
-    await gasRequest('saveData',{
+    // NOT silent: a silent call returns {ok:false} without throwing, which is
+    // how failed saves used to be reported to the user as "✓ Saved to Cloud".
+    const res = await gasRequest('saveData',{
       token: authUser.token,
       key: 'main',
-      value: ST
-    }, true);
+      value: collectCloudBundle()
+    });
+    _syncBusy    = false;
     _syncPending = false;
-    showSyncStatus('saved');
+    _syncRetry   = 0;
+    _lastSyncErr = '';
+    showSyncStatus('saved', res.sizeBytes);
+    return true;
+
   }catch(e){
+    _syncBusy    = false;
+    _lastSyncErr = e.message || 'Unknown error';
     showSyncStatus('error');
+    // Back off and retry: 5s, 15s, 45s — then wait for the next change.
+    if(_syncRetry < 3){
+      const wait = [5000, 15000, 45000][_syncRetry++];
+      clearTimeout(_syncTimer);
+      _syncTimer = setTimeout(()=>syncToCloud(), wait);
+    }
+    return false;
   }
 }
 
 async function loadFromCloud(){
-  if(!authUser?.token || !GAS_URL) return false;
+  if(!isCloudAccount()) return false;
   try{
     const res = await gasRequest('loadData',{
       token: authUser.token,
       key: 'main'
-    }, true);
-    if(res.value){
-      ST = res.value;
-      return true;
-    }
+    });
+    // A brand-new account has no cloud row yet — that is a successful read,
+    // so uploads are now safe.
+    _cloudLoaded = true;
+    if(res.value) return applyCloudBundle(res.value);
     return false;
-  }catch(e){ return false; }
+  }catch(e){
+    _cloudLoaded = false;
+    _lastSyncErr = e.message || 'Could not reach the cloud';
+    showSyncStatus('blocked');
+    return false;
+  }
 }
 
-function showSyncStatus(status){
+// Manual retry from the status badge
+async function retrySync(){
+  if(!isCloudAccount()) return;
+  if(!_cloudLoaded){
+    showSyncStatus('saving');
+    const ok = await loadFromCloud();
+    if(!ok && !_cloudLoaded){
+      alert('Still cannot reach the cloud.\n\n'+_lastSyncErr+
+            '\n\nYour work is saved in this browser and will upload once the connection is back.');
+      return;
+    }
+    hydrateFromStorage();
+    refreshAfterCloudLoad();
+  }
+  syncToCloud(true);
+}
+
+function showSyncStatus(status, bytes){
   let el = document.getElementById('sync-status');
   if(!el){
     el = document.createElement('div');
     el.id = 'sync-status';
-    el.style.cssText='position:fixed;bottom:12px;right:14px;z-index:500;display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--F);transition:all .3s;pointer-events:none';
+    el.style.cssText='position:fixed;bottom:12px;right:14px;z-index:500;display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--F);transition:opacity .3s;cursor:default';
     document.body.appendChild(el);
   }
+  clearTimeout(el._hideTimer);
+  el.onclick = null;
+  el.style.cursor = 'default';
+  el.style.opacity = '1';
+
+  const set = (bg,fg,html,hideAfter)=>{
+    el.style.background = bg;
+    el.style.color      = fg;
+    el.style.border     = '1px solid '+bg.replace(/[\d.]+\)$/,'.35)');
+    el.innerHTML        = html;
+    if(hideAfter) el._hideTimer = setTimeout(()=>{el.style.opacity='0';}, hideAfter);
+  };
+
   if(status==='pending'){
-    el.style.background='rgba(245,200,66,.15)';el.style.color='var(--ye)';el.style.border='1px solid rgba(245,200,66,.3)';
-    el.innerHTML='☁ Syncing…';el.style.opacity='1';
+    set('rgba(245,200,66,.15)','var(--ye)', t('Waiting to sync…'));
+  } else if(status==='saving'){
+    set('rgba(245,200,66,.15)','var(--ye)', t('Syncing…'));
   } else if(status==='saved'){
-    el.style.background='rgba(30,217,122,.15)';el.style.color='var(--gr)';el.style.border='1px solid rgba(30,217,122,.3)';
-    el.innerHTML='✓ Saved to Cloud';el.style.opacity='1';
-    setTimeout(()=>{el.style.opacity='0';},2500);
+    const kb = bytes ? ' ('+Math.round(bytes/1024)+' KB)' : '';
+    set('rgba(30,217,122,.15)','var(--gr)', '✓ '+t('Saved to cloud')+kb, 2500);
   } else if(status==='error'){
-    el.style.background='rgba(255,79,79,.15)';el.style.color='var(--re)';el.style.border='1px solid rgba(255,79,79,.3)';
-    el.innerHTML='⚠ Sync failed (local only)';el.style.opacity='1';
-    setTimeout(()=>{el.style.opacity='0';},4000);
+    set('rgba(255,79,79,.15)','var(--re)',
+        '⚠ '+t('Sync failed')+' — '+t('click to retry'));
+    el.title = _lastSyncErr;
+    el.style.cursor = 'pointer';
+    el.onclick = retrySync;
+  } else if(status==='blocked'){
+    set('rgba(255,79,79,.15)','var(--re)',
+        '⚠ '+t('Offline — saved on this device only'));
+    el.title = _lastSyncErr;
+    el.style.cursor = 'pointer';
+    el.onclick = retrySync;
+  } else if(status==='quota'){
+    set('rgba(255,79,79,.15)','var(--re)',
+        '⚠ '+t('Browser storage is full'), 6000);
   }
 }
+
+// Don't lose the last few seconds of edits when the tab closes or is hidden.
+window.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='hidden' && _syncPending) syncToCloud();
+});
+window.addEventListener('beforeunload', (e)=>{
+  if(_syncPending && isCloudAccount()){
+    syncToCloud();
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 </script>
 
 <!-- NAV -->
@@ -556,6 +1164,7 @@ function showSyncStatus(status){
   <button class="nbtn" onclick="showPage('receipt',this)">✅ Receipt</button>
   <button class="nbtn" onclick="showPage('finance',this)">💰 Finance</button>
   <div class="nsep"></div>
+  <div class="lang-slot"></div>
   <div class="nset-group">
     <button class="nset" onclick="openSettingsTab('company')">🏢 Company</button>
     <button class="nset" onclick="openSettingsTab('clients')">👥 Clients</button>
@@ -1320,37 +1929,10 @@ function showSyncStatus(status){
 <div class="mb" id="inv-modal">
   <div class="modal">
     <h3>New Invoice</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-      <div class="fm"><label>Invoice Number</label><input id="in-num"/></div>
-      <div class="fm"><label>Invoice Date</label><input id="in-date" type="date"/></div>
-    </div>
-    <div class="fm" style="margin-bottom:8px"><label>Based on BOQ</label>
-      <select id="in-boq" onchange="onInvBOQChange()"><option value="">-- Select BOQ --</option></select>
-    </div>
+    <div class="fm" style="margin-bottom:8px"><label>Invoice Number</label><input id="in-num"/></div>
+    <div class="fm" style="margin-bottom:8px"><label>Invoice Date</label><input id="in-date" type="date"/></div>
+    <div class="fm" style="margin-bottom:8px"><label>Based on BOQ</label><select id="in-boq"><option value="">-- Select BOQ --</option></select></div>
     <div class="fm" style="margin-bottom:8px"><label>Work Period / Description</label><input id="in-period" placeholder="e.g. 1st Progress — Foundation Work"/></div>
-    <!-- VAT SETTING -->
-    <div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 13px;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:700;color:var(--tx2);margin-bottom:7px">🧮 VAT / Tax Setting</div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <label class="chkrow" style="gap:6px">
-          <input type="checkbox" id="in-vat-enabled" onchange="onInvVATChange()"/>
-          <span style="font-size:12px;font-weight:600;color:var(--tx)">Include VAT</span>
-        </label>
-        <div id="in-vat-rate-wrap" style="display:none;display:flex;align-items:center;gap:6px">
-          <input type="number" id="in-vat-rate" value="10" min="0" max="100" step="any" style="width:70px;padding:5px 8px"/>
-          <span style="font-size:12px;color:var(--tx2)">%</span>
-        </div>
-        <div id="in-vat-info" style="font-size:11px;color:var(--tx3)">VAT excluded — invoice amount = subtotal only</div>
-      </div>
-      <!-- BOQ VAT preview -->
-      <div id="in-boq-vat-preview" style="display:none;margin-top:7px;padding:6px 9px;background:var(--sf3);border-radius:6px;font-size:11px;color:var(--tx3)"></div>
-    </div>
-    <!-- BOQ GRAND TOTAL PREVIEW -->
-    <div id="in-boq-grand-preview" style="display:none;background:var(--sf3);border:1px solid var(--bd);border-radius:8px;padding:9px 13px;margin-bottom:8px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx3);margin-bottom:5px">BOQ Grand Total (contract base)</div>
-      <div id="in-boq-grand-val" style="font-family:var(--M);font-size:16px;font-weight:800;color:var(--ac)"></div>
-      <div id="in-boq-grand-detail" style="font-size:10px;color:var(--tx3);margin-top:3px"></div>
-    </div>
     <!-- PAYMENT INSTRUCTIONS SELECTOR -->
     <div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
@@ -1440,7 +2022,7 @@ function mcT(u,grand){const m=fa(cv(u));const s=['USD','THB','LAK'].filter(c=>c!
 function eA(u){return fa(cv(u),CURR);}
 function eN(u){return Number(cv(u).toFixed(DC[CURR]));}
 function showXR(){return document.getElementById('show-xr')?.checked;}
-function xrHTML(color){if(!showXR())return'';return `<div style="display:inline-flex;align-items:center;gap:0;border:1px solid #dde1f0;border-radius:5px;overflow:hidden;font-size:10px;background:#f8f9ff"><div style="padding:4px 9px;background:${color}18;font-weight:700;color:${color};border-right:1px solid #dde1f0">Exchange Rates</div><div style="padding:4px 9px;border-right:1px solid #dde1f0">🇺🇸 1 USD = <b>${RATES.THB.toFixed(2)}</b> 🇹🇭 THB</div><div style="padding:4px 9px">🇺🇸 1 USD = <b>${RATES.LAK.toLocaleString()}</b> 🇱🇦 LAK</div></div>`;}
+function xrHTML(color){if(!showXR())return'';return `<div style="display:inline-flex;align-items:center;gap:0;border:1px solid #dde1f0;border-radius:5px;overflow:hidden;font-size:10px;background:#f8f9ff"><div style="padding:4px 9px;background:${color}18;font-weight:700;color:${color};border-right:1px solid #dde1f0">${t('Exchange Rates')}</div><div style="padding:4px 9px;border-right:1px solid #dde1f0">🇺🇸 1 USD = <b>${RATES.THB.toFixed(2)}</b> 🇹🇭 THB</div><div style="padding:4px 9px">🇺🇸 1 USD = <b>${RATES.LAK.toLocaleString()}</b> 🇱🇦 LAK</div></div>`;}
 function setCurr(c){CURR=c;['USD','THB','LAK'].forEach(x=>{const b=document.getElementById('cbtn-'+x);if(b)b.classList.toggle('active',x===c);});refreshAll();}
 function toggleRateInputs(){
   const show=document.getElementById('show-rates')?.checked;
@@ -1487,15 +2069,36 @@ let discState={enabled:false,type:'pct',val:0};
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
-window.onload=()=>{
+// Reads every localStorage key back into the in-memory globals and the
+// settings form. Called on startup AND after a cloud load replaces those
+// keys, so a second device shows the synced company / clients / theme
+// immediately instead of after a manual refresh.
+function hydrateFromStorage(){
   try{const s=localStorage.getItem('cb_st3');if(s)ST=JSON.parse(s);}catch(e){}
   try{const c=localStorage.getItem('cb_cl');if(c)CL=JSON.parse(c);}catch(e){}
-  try{const r=localStorage.getItem('cb_rates');if(r){const p=JSON.parse(r);RATES.THB=p.THB||35.5;RATES.LAK=p.LAK||21500;document.getElementById('rate-thb').value=RATES.THB;document.getElementById('rate-lak').value=RATES.LAK;}}catch(e){}
+  try{const r=localStorage.getItem('cb_rates');if(r){const p=JSON.parse(r);RATES.THB=p.THB||35.5;RATES.LAK=p.LAK||21500;const rt=document.getElementById('rate-thb'),rl=document.getElementById('rate-lak');if(rt)rt.value=RATES.THB;if(rl)rl.value=RATES.LAK;}}catch(e){}
   try{const c=localStorage.getItem('cb_co');if(c)co=Object.assign(co,JSON.parse(c));}catch(e){}
   try{const p=localStorage.getItem('cb_pay');if(p)pay=Object.assign(pay,JSON.parse(p));}catch(e){}
   try{const s=localStorage.getItem('cb_sig');if(s)sig=Object.assign(sig,JSON.parse(s));}catch(e){}
-  try{const pr=localStorage.getItem('cb_prefs');if(pr){const pp=JSON.parse(pr);if(typeof pp.xr!=='undefined')document.getElementById('show-xr').checked=pp.xr;if(typeof pp.sr!=='undefined'){document.getElementById('show-rates').checked=pp.sr;const grp=document.getElementById('rate-inputs-group');if(grp)grp.style.display=pp.sr?'flex':'none';}}}catch(e){}
+  try{const pr=localStorage.getItem('cb_prefs');if(pr){const pp=JSON.parse(pr);if(typeof pp.xr!=='undefined'){const x=document.getElementById('show-xr');if(x)x.checked=pp.xr;}if(typeof pp.sr!=='undefined'){const sr=document.getElementById('show-rates');if(sr)sr.checked=pp.sr;const grp=document.getElementById('rate-inputs-group');if(grp)grp.style.display=pp.sr?'flex':'none';}}}catch(e){}
   try{const tc=localStorage.getItem('cb_tc');if(tc)tcList=JSON.parse(tc);}catch(e){}
+  try{loadPayProfiles();loadSigProfiles();loadFIN();}catch(e){}
+}
+
+// Re-render everything that reads from the state we just replaced.
+function refreshAfterCloudLoad(){
+  try{
+    loadTheme();
+    updateNavLogo();updateCoStrip();
+    renderTC();populateClientSel();renderClientsList();
+    renderInvList();renderRecList();
+    if(activeInvId) openInv(activeInvId);
+    markDirty();
+  }catch(e){}
+}
+
+window.onload=()=>{
+  hydrateFromStorage();
 
   const today=new Date().toISOString().split('T')[0];
   ['boq-date','in-date','rn-date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=today;});
@@ -1840,30 +2443,30 @@ function exportBOQ(type){
   if(type==='excel'){
     const wb=XLSX.utils.book_new();const rows=[];
     if(co.name)rows.push([co.name]);if(co.a1)rows.push([co.a1+(co.a2?' | '+co.a2:'')]);rows.push([]);
-    rows.push(['BILL OF QUOTATION','','','','No.',g('boq-num')]);
-    rows.push(['Date',g('boq-date'),'','','Client',g('boq-client')]);
-    rows.push(['Project',g('boq-project'),'','','Currency',CN[CURR]]);
-    if(showXR())rows.push(['Exchange Rates','1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
-    rows.push(['Scope',g('boq-scope')]);rows.push([]);
-    rows.push(['No.','Description','Unit','Qty','Unit Price ('+CN[CURR]+')','Amount ('+CN[CURR]+')']);
+    rows.push([t('Bill of Quotation').toUpperCase(),'','','',t('No.'),g('boq-num')]);
+    rows.push([t('Date'),g('boq-date'),'','',t('Client'),g('boq-client')]);
+    rows.push([t('Project'),g('boq-project'),'','',t('Currency'),CN[CURR]]);
+    if(showXR())rows.push([t('Exchange Rates'),'1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
+    rows.push([t('Scope of Work'),g('boq-scope')]);rows.push([]);
+    rows.push([t('No.'),t('Description'),t('Unit'),t('Qty'),t('Unit Price')+' ('+CN[CURR]+')',t('Amount')+' ('+CN[CURR]+')']);
     let tot=0;
     boqSecs.forEach((sec,si)=>{rows.push([si+1+'. '+sec.name]);let st=0;
       sec.items.forEach((it,ii)=>{const u=(it.pUSD||0)*(it.qty||0);st+=u;tot+=u;
         rows.push([`${si+1}.${ii+1}`,it.desc,it.unit,it.qty,eN(it.pUSD),eN(u)]);});
-      rows.push(['','','','','Section Subtotal',eN(st)]);});
+      rows.push(['','','','',t('Section Total'),eN(st)]);});
     const discEnabled=document.getElementById('disc-enabled')?.checked;
     const discVal=parseFloat(g('disc-val')||0);
     const discType=document.getElementById('disc-type')?.value||'pct';
     let dAmt=0;if(discEnabled&&discVal>0){dAmt=discType==='pct'?tot*discVal/100:tu(discVal,boqIC());dAmt=Math.min(dAmt,tot);}
     const vr=parseFloat(g('boq-vat')||10);const vat=(tot-dAmt)*vr/100;
-    rows.push([]);rows.push(['','','','','Subtotal',eN(tot)]);
-    if(discEnabled&&dAmt>0)rows.push(['','','','',`Discount${discType==='pct'?` (${discVal}%)`:''}`,'-'+eN(dAmt)]);
-    if(vr>0)rows.push(['','','','',`VAT (${vr}%)`,eN(vat)]);
-    else rows.push(['','','','','VAT','Excluded']);
-    rows.push(['','','','','GRAND TOTAL',eN(tot-dAmt+vat)]);
-    if(tcList.length&&document.getElementById('tc-show')?.checked){rows.push([]);rows.push(['Terms & Conditions']);tcList.forEach((tc,i)=>rows.push([i+1+'. '+tc.text]));}
+    rows.push([]);rows.push(['','','','',t('Subtotal'),eN(tot)]);
+    if(discEnabled&&dAmt>0)rows.push(['','','','',t('Discount')+(discType==='pct'?` (${discVal}%)`:''),'-'+eN(dAmt)]);
+    if(vr>0)rows.push(['','','','',t('VAT')+` (${vr}%)`,eN(vat)]);
+    else rows.push(['','','','',t('VAT'),t('Excluded')]);
+    rows.push(['','','','',t('GRAND TOTAL'),eN(tot-dAmt+vat)]);
+    if(tcList.length&&document.getElementById('tc-show')?.checked){rows.push([]);rows.push([t('Terms & Conditions')]);tcList.forEach((tc,i)=>rows.push([i+1+'. '+tc.text]));}
     const noteVal=g('boq-note');
-    if(noteVal&&document.getElementById('note-show')?.checked!==false){rows.push([]);rows.push(['Notes',noteVal]);}
+    if(noteVal&&document.getElementById('note-show')?.checked!==false){rows.push([]);rows.push([t('Notes'),noteVal]);}
     const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:6},{wch:36},{wch:7},{wch:7},{wch:24},{wch:24}];
     XLSX.utils.book_append_sheet(wb,ws,'BOQ');XLSX.writeFile(wb,'BOQ_'+g('boq-num')+'.xlsx');
   } else if(type==='pdf'){
@@ -1890,7 +2493,7 @@ function buildBOQHtml(){
         <td style="padding:5px 8px;text-align:right;font-size:11px;font-weight:600;width:105px">${eA(u)}</td>
       </tr>`;
     });
-    rows+=`<tr style="background:${color}08"><td colspan="4" style="padding:5px 8px;text-align:right;font-size:10px;color:#888;border-top:1px solid ${color}20">Section Total:</td><td></td><td style="padding:5px 8px;text-align:right;font-weight:700;color:${color};border-top:1px solid ${color}20">${eA(st)}</td></tr>`;
+    rows+=`<tr style="background:${color}08"><td colspan="4" style="padding:5px 8px;text-align:right;font-size:10px;color:#888;border-top:1px solid ${color}20">${t('Section Total')}:</td><td></td><td style="padding:5px 8px;text-align:right;font-weight:700;color:${color};border-top:1px solid ${color}20">${eA(st)}</td></tr>`;
   });
   const discEnabled=document.getElementById('disc-enabled')?.checked;
   const discType=document.getElementById('disc-type')?.value||'pct';
@@ -1900,7 +2503,7 @@ function buildBOQHtml(){
   // TC block
   const tcShow=document.getElementById('tc-show')?.checked;
   const tcBlock=tcShow&&tcList.length?`<div style="margin:14px 0 0;border:1px solid #e8ecf0;border-radius:7px;overflow:hidden">
-    <div style="background:${color};padding:7px 14px;font-size:11px;font-weight:700;color:#fff;letter-spacing:.5px">TERMS &amp; CONDITIONS</div>
+    <div style="background:${color};padding:7px 14px;font-size:11px;font-weight:700;color:#fff;letter-spacing:.5px">${t('Terms & Conditions')}</div>
     <div style="padding:10px 14px">${tcList.map((tc,i)=>`<div style="font-size:10px;color:#555;padding:3px 0;display:flex;gap:7px"><span style="color:${color};font-weight:700;min-width:14px">${i+1}.</span><span>${esc(tc.text)}</span></div>`).join('')}</div>
   </div>`:'';
   // Signature block
@@ -1911,7 +2514,7 @@ function buildBOQHtml(){
         <div style="font-size:11px;font-weight:700">${esc(sig.name)}</div>
         ${sig.title?`<div style="font-size:10px;color:#888">${esc(sig.title)}</div>`:''}
         ${sig.co?`<div style="font-size:10px;color:#888">${esc(sig.co)}</div>`:''}
-        ${sig.lic?`<div style="font-size:9px;color:#aaa">Lic: ${esc(sig.lic)}</div>`:''}
+        ${sig.lic?`<div style="font-size:9px;color:#aaa">${t('Lic')}: ${esc(sig.lic)}</div>`:''}
       </div>
     </div>
   </div>`:'';
@@ -1920,35 +2523,35 @@ function buildBOQHtml(){
     ['Client',g('boq-client')],['Project',g('boq-project')],
     ['Location',g('boq-location')],['VAT',vr>0?vr+'%':'Excluded'],
   ],color);
-  const scopeBlock=g('boq-scope')?`<div style="margin:10px 20px;background:${color}08;border-left:3px solid ${color};padding:7px 12px;border-radius:0 5px 5px 0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color};margin-bottom:3px;letter-spacing:1px">SCOPE OF WORK</div><div style="font-size:11px;color:#444;line-height:1.6">${esc(g('boq-scope')).replace(/\n/g,'<br>')}</div></div>`:'';
+  const scopeBlock=g('boq-scope')?`<div style="margin:10px 20px;background:${color}08;border-left:3px solid ${color};padding:7px 12px;border-radius:0 5px 5px 0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color};margin-bottom:3px;letter-spacing:1px">${t('Scope of Work')}</div><div style="font-size:11px;color:#444;line-height:1.6">${esc(g('boq-scope')).replace(/\n/g,'<br>')}</div></div>`:'';
   return `<div class="a4doc">
     ${header}${scopeBlock}
     <div style="padding:10px 20px 16px">
       <table style="width:100%;border-collapse:collapse;border:1px solid #e8ecf0">
         <thead><tr style="background:${color}">
           <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:left;width:36px">#</th>
-          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:left">Description of Work</th>
-          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:center;width:40px">Unit</th>
-          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:right;width:50px">Qty</th>
-          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:right;width:105px">Unit Price</th>
-          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:right;width:105px">Amount</th>
+          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:left">${t('Description')}</th>
+          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:center;width:40px">${t('Unit')}</th>
+          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:right;width:50px">${t('Qty')}</th>
+          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:right;width:105px">${t('Unit Price')}</th>
+          <th style="padding:6px 8px;color:#fff;font-size:9px;text-align:right;width:105px">${t('Amount')}</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px;gap:16px">
         <div>${xrHTML(color)}</div>
         <table style="border-collapse:collapse;min-width:260px;font-size:11px;border:1px solid #e8ecf0">
-          <tr style="background:#f8f9ff"><td style="padding:6px 13px;color:#777">Subtotal</td><td style="padding:6px 13px;text-align:right;font-weight:600">${eA(sub)}</td></tr>
-          ${discEnabled&&dAmt>0?`<tr style="background:#f0fff8"><td style="padding:6px 13px;color:#27ae60">${discType==='pct'?`Discount (${discVal}%)`:'Discount'}</td><td style="padding:6px 13px;text-align:right;font-weight:600;color:#27ae60">− ${eA(dAmt)}</td></tr>`:''}
+          <tr style="background:#f8f9ff"><td style="padding:6px 13px;color:#777">${t('Subtotal')}</td><td style="padding:6px 13px;text-align:right;font-weight:600">${eA(sub)}</td></tr>
+          ${discEnabled&&dAmt>0?`<tr style="background:#f0fff8"><td style="padding:6px 13px;color:#27ae60">${discType==='pct'?`${t('Discount')} (${discVal}%)`:t('Discount')}</td><td style="padding:6px 13px;text-align:right;font-weight:600;color:#27ae60">− ${eA(dAmt)}</td></tr>`:''}
           ${vr>0
-            ?`<tr><td style="padding:6px 13px;color:#777;border-top:1px solid #f0f0f0">VAT (${vr}%)</td><td style="padding:6px 13px;text-align:right;font-weight:600;border-top:1px solid #f0f0f0">${eA(vat)}</td></tr>`
-            :`<tr><td style="padding:6px 13px;color:#999;border-top:1px solid #f0f0f0;font-size:11px">VAT <span style="background:#fff3cd;color:#856404;font-weight:700;padding:1px 5px;border-radius:3px;font-size:10px">Excluded</span></td><td style="padding:6px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">—</td></tr>`}
-          <tr style="background:${color}"><td style="padding:8px 13px;color:#fff;font-weight:800;font-size:12px">GRAND TOTAL</td><td style="padding:8px 13px;text-align:right;color:#fff;font-weight:800;font-size:14px">${eA(grand)}</td></tr>
+            ?`<tr><td style="padding:6px 13px;color:#777;border-top:1px solid #f0f0f0">${t('VAT')} (${vr}%)</td><td style="padding:6px 13px;text-align:right;font-weight:600;border-top:1px solid #f0f0f0">${eA(vat)}</td></tr>`
+            :`<tr><td style="padding:6px 13px;color:#999;border-top:1px solid #f0f0f0;font-size:11px">${t('VAT')} <span style="background:#fff3cd;color:#856404;font-weight:700;padding:1px 5px;border-radius:3px;font-size:10px">${t('Excluded')}</span></td><td style="padding:6px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">—</td></tr>`}
+          <tr style="background:${color}"><td style="padding:8px 13px;color:#fff;font-weight:800;font-size:12px">${t('GRAND TOTAL')}</td><td style="padding:8px 13px;text-align:right;color:#fff;font-weight:800;font-size:14px">${eA(grand)}</td></tr>
         </table>
       </div>
       ${tcBlock}
       ${(document.getElementById('note-show')?.checked!==false)&&g('boq-note')?`<div style="margin:12px 0 0;border:1px solid #e8ecf0;border-radius:7px;overflow:hidden">
-        <div style="background:${color}18;padding:7px 14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:${color};border-bottom:1px solid #e8ecf0">📝 NOTES</div>
+        <div style="background:${color}18;padding:7px 14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:${color};border-bottom:1px solid #e8ecf0">📝 ${t('Notes')}</div>
         <div style="padding:10px 14px;font-size:11px;color:#444;line-height:1.7;white-space:pre-wrap">${esc(g('boq-note'))}</div>
       </div>`:''}
       ${sigBlock}
@@ -1962,66 +2565,14 @@ function buildBOQHtml(){
 // ═══════════════════════════════════════════════
 function fillInvBOQSel(){
   const sel=document.getElementById('in-boq');sel.innerHTML='<option value="">-- Select BOQ --</option>';
+  // deduplicated by num - show latest
   const seen={};const dedupd=[];
   [...ST.boqs].reverse().forEach(b=>{if(!seen[b.num]){seen[b.num]=true;dedupd.push(b);}});
   dedupd.forEach(b=>sel.innerHTML+=`<option value="${b.id}">${b.num} – ${b.client} / ${b.project}</option>`);
   document.getElementById('in-num').value=`INV-${new Date().getFullYear()}-${String(ST.invoices.length+1).padStart(3,'0')}`;
   document.getElementById('in-date').value=new Date().toISOString().split('T')[0];
 }
-
-function onInvBOQChange(){
-  const boqId=document.getElementById('in-boq')?.value;
-  const preview=document.getElementById('in-boq-grand-preview');
-  const vatPreview=document.getElementById('in-boq-vat-preview');
-  if(!boqId||!preview){if(preview)preview.style.display='none';return;}
-  const boq=ST.boqs.find(b=>b.id===boqId);if(!boq){preview.style.display='none';return;}
-
-  // Calculate BOQ Grand Total
-  let sub=0;
-  boq.sections.forEach(s=>s.items.forEach(i=>sub+=(i.pUSD||0)*(i.qty||0)));
-  const discAmt=boq.discount?.amtUSD||0;
-  const afterDisc=sub-discAmt;
-  const vr=boq.vatRate||0;
-  const vat=afterDisc*vr/100;
-  const grand=afterDisc+vat;
-
-  // Auto-set VAT checkbox from BOQ's VAT rate
-  const vatCb=document.getElementById('in-vat-enabled');
-  const vatRateEl=document.getElementById('in-vat-rate');
-  if(vatCb){vatCb.checked=vr>0;if(vatRateEl)vatRateEl.value=vr;}
-  onInvVATChange();
-
-  preview.style.display='block';
-  document.getElementById('in-boq-grand-val').innerHTML=
-    `${fa(cv(grand))} <span style="font-size:11px;font-weight:400;color:var(--tx3)">(${fa(cv(grand),'USD')})</span>`;
-  const details=[];
-  if(sub!==grand) details.push(`Subtotal: ${fa(cv(sub))}`);
-  if(discAmt>0) details.push(`Discount: −${fa(cv(discAmt))}`);
-  if(vr>0) details.push(`VAT (${vr}%): +${fa(cv(vat))}`);
-  else details.push('VAT: Excluded');
-  document.getElementById('in-boq-grand-detail').textContent=details.join(' · ');
-
-  if(vatPreview){
-    if(vr===0){
-      vatPreview.style.display='block';
-      vatPreview.innerHTML=`ℹ The selected BOQ has <b>VAT Excluded</b> (0%). Invoice will use 0% VAT.`;
-    } else {
-      vatPreview.style.display='block';
-      vatPreview.innerHTML=`ℹ BOQ VAT rate: <b>${vr}%</b>. You can change this for this invoice below.`;
-    }
-  }
-}
-
-function onInvVATChange(){
-  const enabled=document.getElementById('in-vat-enabled')?.checked;
-  const wrap=document.getElementById('in-vat-rate-wrap');
-  const info=document.getElementById('in-vat-info');
-  if(wrap)wrap.style.display=enabled?'flex':'none';
-  if(info)info.textContent=enabled
-    ?`VAT included — invoice total = subtotal + VAT`
-    :`VAT excluded — invoice total = subtotal only`;
-}
-
+function openNewInv(){fillInvBOQSel();populatePayPresetDropdowns();document.getElementById('inv-modal').classList.add('show');}
 function createInv(){
   const num=document.getElementById('in-num').value.trim();
   const date=document.getElementById('in-date').value;
@@ -2031,56 +2582,30 @@ function createInv(){
   const boq=ST.boqs.find(b=>b.id===boqId);if(!boq)return;
   const prev=ST.invoices.filter(i=>i.boqId===boqId);
 
-  // VAT setting from modal
-  const vatEnabled=document.getElementById('in-vat-enabled')?.checked;
-  const vatRate=vatEnabled?parseFloat(document.getElementById('in-vat-rate')?.value||boq.vatRate||0):0;
-
-  // BOQ Grand Total basis — each item's boqTotal = item's share of Grand Total (incl discount & VAT)
-  let boqSubtotal=0;
-  boq.sections.forEach(sec=>sec.items.forEach(it=>{ boqSubtotal+=(it.pUSD||0)*(it.qty||0); }));
+  // Calculate BOQ-level discount ratio to distribute proportionally across items
+  let boqRawTotal=0;
+  boq.sections.forEach(sec=>sec.items.forEach(it=>{ boqRawTotal+=(it.pUSD||0)*(it.qty||0); }));
   const discAmt=boq.discount?.amtUSD||0;
-  const afterDisc=boqSubtotal-discAmt;
-  const boqVAT=afterDisc*(vatRate/100);
-  const boqGrand=afterDisc+boqVAT;
-  // Grand Total ratio: for distributing Grand Total proportionally to each item
-  const grandRatio=boqSubtotal>0?(boqGrand/boqSubtotal):1;
-  // discountRatio for display reference
-  const discountRatio=(boqSubtotal>0&&discAmt>0)?(discAmt/boqSubtotal):0;
+  // discountRatio: what fraction of each item's value is removed by the discount
+  const discountRatio=(boqRawTotal>0&&discAmt>0)?(discAmt/boqRawTotal):0;
 
   const items=[];
   boq.sections.forEach(sec=>{sec.items.forEach(it=>{
     const rawTotal=(it.pUSD||0)*(it.qty||0);
-    // Each item's boqTotal = its share of the BOQ Grand Total (after discount + VAT proportional share)
-    const bT=rawTotal*grandRatio;
+    // Apply proportional discount to get the effective contract value for this item
+    const bT=rawTotal*(1-discountRatio);
     let pPct=0;prev.forEach(pi=>{const px=pi.items.find(x=>x.bid===it.id);if(px)pPct=Math.max(pPct,px.cumPct||0);});
     items.push({bid:it.id,sec:sec.name,desc:it.desc,unit:it.unit,boqQty:it.qty,boqPUSD:it.pUSD,
-      boqRawTotal:rawTotal,
-      boqTotal:bT,           // = item's share of Grand Total
-      discountRatio,
-      grandRatio,
+      boqRawTotal:rawTotal,  // store raw for reference
+      boqTotal:bT,           // discounted contract value — used for all invoice calculations
+      discountRatio,         // stored so % columns stay accurate
       pct:0,amt:0,prevPct:pPct,prevAmt:bT*pPct/100,cumPct:pPct,cumAmt:bT*pPct/100,rem:bT*(1-pPct/100)});
   });});
   const payObj=getInvPayObj();
   ST.invoices.push({id:uid(),num,date,boqId,boqNum:boq.num,period,items,
-    vatRate,            // invoice-level VAT (0 = excluded)
-    vatEnabled,         // explicit flag
-    discount:boq.discount||null,
-    boqGrand,           // store BOQ Grand Total for reference
+    vatRate:boq.vatRate,discount:boq.discount||null,
     client:boq.client,project:boq.project,location:boq.location,payObj});
   persist();closeModal('inv-modal');renderInvList();openInv(ST.invoices[ST.invoices.length-1].id);
-}
-function openNewInv(){
-  fillInvBOQSel();
-  populatePayPresetDropdowns();
-  // Reset VAT state
-  const vatCb=document.getElementById('in-vat-enabled');
-  if(vatCb)vatCb.checked=false;
-  onInvVATChange();
-  const preview=document.getElementById('in-boq-grand-preview');
-  if(preview)preview.style.display='none';
-  const vatPrev=document.getElementById('in-boq-vat-preview');
-  if(vatPrev)vatPrev.style.display='none';
-  document.getElementById('inv-modal').classList.add('show');
 }
 function renderInvList(){
   const el=document.getElementById('inv-list');
@@ -2141,7 +2666,7 @@ function renderInvList(){
     const invContainer=grp.querySelector('.proj-invoices');
     proj.invoices.slice().reverse().forEach(inv=>{
       const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-      const vat=sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+      const vat=sub*(inv.vatRate||10)/100;
       const tot=sub+vat;
       const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
       const isActive=inv.id===activeInvId;
@@ -2232,7 +2757,7 @@ function renderInvHistoryModal(){
 
     g.invoices.forEach(inv=>{
       const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-      const vat=sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+      const vat=sub*(inv.vatRate||10)/100;
       const tot=sub+vat;
       const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
       const row=document.createElement('div');
@@ -2286,37 +2811,36 @@ function deleteInvFromHistory(invId){
 function openInv(invId){
   activeInvId=invId;const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   renderInvList();
-  const vr=inv.vatRate||0;
-  const vatEnabled=inv.vatEnabled||(vr>0);
+  const vr=inv.vatRate||10;
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   let pU=inv.items.reduce((a,i)=>a+(i.prevAmt||0),0);
   let cU=inv.items.reduce((a,i)=>a+(i.cumAmt||0),0);
   let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);
+  // Raw BOQ total (before discount) for reference
   let bGRaw=inv.items.reduce((a,i)=>a+(i.boqRawTotal||i.boqTotal||0),0);
   const vat=tU*vr/100;
 
-  // Column header: describes what boqTotal represents
-  const boqColLabel=vatEnabled
-    ?(hasDisc
-      ?`Grand Total<br><span style="font-size:9px;color:var(--ye)">incl. VAT + after discount</span>`
-      :`Grand Total<br><span style="font-size:9px;color:var(--tx3)">incl. VAT ${vr}%</span>`)
-    :(hasDisc
-      ?`Contract Value<br><span style="font-size:9px;color:var(--ye)">after discount, excl. VAT</span>`
-      :`Contract Value<br><span style="font-size:9px;color:var(--tx3)">excl. VAT</span>`);
+  // BOQ Total column header label
+  const boqColLabel=hasDisc
+    ?`${t('Contract Value')}<br><span style="font-size:9px;color:var(--ye)">${t('after discount')} ${disc.type==='pct'?'('+disc.val+'%)':''}</span>`
+    :t('BOQ Total');
   let tr='';let cs='';
   inv.items.forEach((it,idx)=>{
     if(it.sec!==cs){cs=it.sec;tr+=`<tr style="background:var(--sf3)"><td colspan="10" style="font-weight:700;padding:6px 9px;font-size:12px">${esc(it.sec)}</td></tr>`;}
+    const maxPct=Math.max(0,100-it.prevPct);
     tr+=`<tr><td style="font-size:10px">${idx+1}</td><td>${esc(it.desc)}</td><td style="font-size:11px">${it.unit}</td>
       <td class="num">${mcC(it.boqTotal)}</td>
       <td class="num" style="color:var(--tx3);font-size:11px">${it.prevPct.toFixed(1)}%<br><small>${fa(cv(it.prevAmt))}</small></td>
-      <td class="num"><input type="number" value="${it.pct||0}" min="0" max="${100-it.prevPct}" step="0.1"
-        style="width:54px;text-align:right" oninput="updPct('${invId}','${it.bid}',+this.value)"/>%</td>
-      <td class="num" id="it-${it.bid}">${mcC(it.amt||0)}</td>
-      <td class="num" style="color:var(--ac);font-size:11px">${it.cumPct.toFixed(1)}%</td>
-      <td class="num" style="color:var(--ac)">${mcC(it.cumAmt)}</td>
-      <td class="num" style="color:var(--ye)">${mcC(it.rem)}</td>
+      <td class="num"><div class="pct-in"><input type="number" id="ipct-${it.bid}" value="${numIn(it.pct||0,2)}" min="0" max="${maxPct.toFixed(2)}" step="0.1"
+        oninput="updPct('${invId}','${it.bid}',+this.value)" onchange="commitProgress('${invId}','${it.bid}')" title="${t('Enter % — amount is calculated')}"/><span>%</span></div></td>
+      <td class="num"><div class="amt-in"><span>${SYM[CURR]}</span><input type="number" id="iamt-${it.bid}" value="${numIn(cv(it.amt||0),DC[CURR])}" min="0" step="any"
+        oninput="updAmt('${invId}','${it.bid}',+this.value)" onchange="commitProgress('${invId}','${it.bid}')" title="${t('Enter amount — % is calculated')}"/></div>
+        <div class="amt-alt" id="ialt-${it.bid}">${altCur(it.amt||0)}</div></td>
+      <td class="num" style="color:var(--ac);font-size:11px" id="icp-${it.bid}">${it.cumPct.toFixed(1)}%</td>
+      <td class="num" style="color:var(--ac)" id="ica-${it.bid}">${mcC(it.cumAmt)}</td>
+      <td class="num" style="color:var(--ye)" id="irm-${it.bid}">${mcC(it.rem)}</td>
     </tr>`;
   });
 
@@ -2327,10 +2851,7 @@ function openInv(invId){
   document.getElementById('inv-detail').innerHTML=`
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:7px;margin-bottom:11px">
-        <div>
-          <div style="font-size:14px;font-weight:700">${inv.num}</div>
-          <div style="font-size:11px;color:var(--tx3)">${inv.period} · ${inv.date}</div>
-        </div>
+        <div><div style="font-size:14px;font-weight:700">${inv.num}</div><div style="font-size:11px;color:var(--tx3)">${inv.period} · ${inv.date}</div></div>
         <div class="ar">
           <button class="btn btn-o btn-sm" onclick="previewDoc('inv','${invId}')" style="border-color:var(--ac2);color:var(--ac2)">👁 Preview</button>
           <button class="btn btn-e btn-sm" onclick="exportInv('${invId}','excel')">⬇ Excel</button>
@@ -2340,33 +2861,8 @@ function openInv(invId){
           <button class="btn btn-d btn-sm" onclick="deleteInv('${invId}')">🗑 Delete</button>
         </div>
       </div>
-
-      <!-- VAT INLINE EDITOR -->
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;margin-bottom:10px;flex-wrap:wrap">
-        <span style="font-size:11px;font-weight:700;color:var(--tx2)">🧮 VAT</span>
-        <label class="chkrow" style="gap:6px;margin:0">
-          <input type="checkbox" id="ivat-toggle-${invId}" ${vatEnabled&&vr>0?'checked':''} onchange="toggleInvVAT('${invId}')"/>
-          <span style="font-size:12px;font-weight:600;color:var(--tx)">Include VAT</span>
-        </label>
-        <div id="ivat-rate-wrap-${invId}" style="display:${vatEnabled&&vr>0?'flex':'none'};align-items:center;gap:6px">
-          <input type="number" id="ivat-rate-${invId}" value="${vr||10}" min="0" max="100" step="any"
-            style="width:65px;padding:4px 7px;font-size:12px" oninput="changeInvVATRate('${invId}')"/>
-          <span style="font-size:12px;color:var(--tx2)">%</span>
-        </div>
-        ${vatEnabled&&vr>0
-          ?`<span style="font-size:11px;color:var(--gr);font-weight:600">VAT ${vr}% included</span>`
-          :`<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700;border:1px solid rgba(245,200,66,.3)">VAT Excluded</span>`
-        }
-        <div style="flex:1"></div>
-        <button class="btn btn-o btn-sm" style="font-size:11px" onclick="saveInv('${invId}')">Apply</button>
-      </div>
-
       <div class="rs">
-        <div class="rst">
-          <div class="l">This Invoice ${vatEnabled&&vr>0?'(incl. VAT)':'(VAT Excluded)'}</div>
-          <div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div>
-          <div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div>
-        </div>
+        <div class="rst"><div class="l">This Invoice (incl. VAT)</div><div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div><div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div></div>
         <div class="rst"><div class="l">Cumulative (excl. VAT)</div><div class="v" style="color:var(--ac)">${fa(cv(cU))}</div><div class="sv">${fa(cv(cU),'USD')}</div></div>
         <div class="rst">
           <div class="l">Contract Value ${hasDisc?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(30,217,122,.15);color:var(--gr);font-weight:700">Disc. applied</span>`:''}</div>
@@ -2377,21 +2873,19 @@ function openInv(invId){
       <div class="tw" id="inv-tbl-${invId}">
         <table><thead><tr>
           <th>#</th><th style="min-width:120px">Description</th><th>Unit</th>
-          <th class="num">${boqColLabel}</th><th class="num">Previous</th>
-          <th class="num">This %</th><th class="num">This Amt</th>
-          <th class="num">Cum %</th><th class="num">Cum Amt</th><th class="num">Remain</th>
+          <th class="num">${boqColLabel}</th><th class="num">${t('Previous')}</th>
+          <th class="num">${t('This %')}<br><span style="font-size:9px;font-weight:400;color:var(--ac)">${t('editable')}</span></th>
+          <th class="num">${t('This Amt')} (${CURR})<br><span style="font-size:9px;font-weight:400;color:var(--ac)">${t('editable')}</span></th>
+          <th class="num">${t('Cum %')}</th><th class="num">${t('Cum Amt')}</th><th class="num">${t('Remaining')}</th>
         </tr></thead><tbody>${tr}</tbody></table>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--tx3)">
+        <span>💡</span><span>${t('Type a percentage and the amount fills in automatically — or type an amount and the percentage is worked out for you.')}</span>
       </div>
       <div class="totals">
         <div class="tb">
           <div class="tr2"><span class="tl">This Subtotal</span><span class="tv" id="isub-${invId}">${mcT(tU)}</span></div>
-          <div class="tr2" id="ivat-row-${invId}">
-            <span class="tl" id="ivat-label-${invId}">VAT ${vatEnabled&&vr>0
-              ?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`
-              :'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>'
-            }</span>
-            <span class="tv" id="ivat-${invId}">${vatEnabled&&vr>0?mcT(vat):`<span style="font-size:11px;color:var(--tx3);font-family:var(--M)">—</span>`}</span>
-          </div>
+          <div class="tr2"><span class="tl">VAT ${vr>0?`(${vr}%)`:'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>'}</span><span class="tv" id="ivat-${invId}">${mcT(vat)}</span></div>
           <div class="tr2"><span class="tl" style="color:var(--tx3)">Previous Invoiced</span><span class="tv" style="opacity:.5">${mcT(pU)}</span></div>
           <div class="tr2 sep grand"><span class="tl">THIS INVOICE TOTAL</span><span class="tv" id="itot-${invId}">${mcT(tU+vat,true)}</span></div>
         </div>
@@ -2533,76 +3027,88 @@ function getCSSVar(v){
   return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 }
 
+// ── PROGRESS ENTRY: % ⇄ AMOUNT ──────────────────────────────────────
+// The two columns are two views of the same number. Type into either one and
+// the other is derived from it; whichever box you are typing in is left
+// alone so the caret does not jump.
+
+// Value for a number <input> — no thousand separators, currency precision.
+function numIn(n,dp){
+  const v=Number(n||0);
+  return Number(v.toFixed(dp===undefined?2:dp));
+}
+// Small secondary line showing the same amount in the other two currencies.
+function altCur(u){
+  return ['USD','THB','LAK'].filter(c=>c!==CURR)
+    .map(c=>`${FLAG[c]}${fa(cv(u,c),c)}`).join(' ');
+}
+
+// Writes pct onto the item and recalculates every derived field.
+function setItemPct(it,pct){
+  const max=Math.max(0,100-(it.prevPct||0));
+  pct=Math.max(0,Math.min(Number(pct)||0,max));
+  it.pct=pct;
+  it.amt=it.boqTotal*pct/100;
+  it.cumPct=(it.prevPct||0)+pct;
+  it.cumAmt=it.boqTotal*it.cumPct/100;
+  it.rem=it.boqTotal-it.cumAmt;
+  return pct;
+}
+
+// Repaints the derived cells of one row plus the invoice totals.
+function paintRow(invId,it,skip){
+  const pe=document.getElementById('ipct-'+it.bid);
+  const ae=document.getElementById('iamt-'+it.bid);
+  if(pe&&skip!=='pct')pe.value=numIn(it.pct,2);
+  if(ae&&skip!=='amt')ae.value=numIn(cv(it.amt),DC[CURR]);
+  setH('ialt-'+it.bid,altCur(it.amt));
+  setH('icp-'+it.bid,it.cumPct.toFixed(1)+'%');
+  setH('ica-'+it.bid,mcC(it.cumAmt));
+  setH('irm-'+it.bid,mcC(it.rem));
+
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  const tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
+  const vat=tU*(inv.vatRate||10)/100;
+  setH('isub-'+invId,mcT(tU));setH('ivat-'+invId,mcT(vat));setH('itot-'+invId,mcT(tU+vat,true));
+  markDirty();
+}
+
+// User typed a percentage → derive the amount.
 function updPct(invId,bid,pct){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   const it=inv.items.find(i=>i.bid===bid);if(!it)return;
-  pct=Math.max(0,Math.min(pct,100-it.prevPct));
-  it.pct=pct;it.amt=it.boqTotal*pct/100;
-  it.cumPct=it.prevPct+pct;it.cumAmt=it.boqTotal*it.cumPct/100;it.rem=it.boqTotal-it.cumAmt;
-  const el=document.getElementById('it-'+bid);if(el)el.innerHTML=mcC(it.amt);
-  let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-  const vatEnabled=inv.vatEnabled||(inv.vatRate||0)>0;
-  const vat=vatEnabled?tU*(inv.vatRate||0)/100:0;
-  setH('isub-'+invId,mcT(tU));setH('ivat-'+invId,mcT(vat));setH('itot-'+invId,mcT(tU+vat,true));
-  // Notify Dashboard/Finance of progress change
-  markDirty();
+  setItemPct(it,pct);
+  paintRow(invId,it,'pct');
 }
-// ── INVOICE VAT INLINE EDIT ──────────────────────────────
-function toggleInvVAT(invId){
+
+// User typed an amount (in the currently displayed currency) → derive the %.
+function updAmt(invId,bid,amtDisplay){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
-  const checked=document.getElementById('ivat-toggle-'+invId)?.checked;
-  const rateWrap=document.getElementById('ivat-rate-wrap-'+invId);
-  if(rateWrap)rateWrap.style.display=checked?'flex':'none';
-  if(!checked){
-    // Immediately set VAT to 0 and refresh totals
-    inv.vatEnabled=false;inv.vatRate=0;
-    refreshInvTotals(invId);
-  } else {
-    const rate=parseFloat(document.getElementById('ivat-rate-'+invId)?.value||10);
-    inv.vatEnabled=true;inv.vatRate=rate;
-    refreshInvTotals(invId);
+  const it=inv.items.find(i=>i.bid===bid);if(!it)return;
+
+  // Entered value is in the display currency; the item is stored in USD.
+  const amtUSD=tu(Number(amtDisplay)||0,CURR);
+
+  if(!it.boqTotal){
+    // No contract value to divide by — a percentage is undefined.
+    setItemPct(it,0);
+    paintRow(invId,it,'amt');
+    return;
   }
+  setItemPct(it,amtUSD/it.boqTotal*100);
+  paintRow(invId,it,'amt');
 }
 
-function changeInvVATRate(invId){
+// Fired on blur / Enter — clamp the box the user was in, then save.
+function commitProgress(invId,bid){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
-  const rate=parseFloat(document.getElementById('ivat-rate-'+invId)?.value||0);
-  inv.vatRate=rate;
-  inv.vatEnabled=rate>0;
-  refreshInvTotals(invId);
+  const it=inv.items.find(i=>i.bid===bid);
+  if(it)paintRow(invId,it);
+  persist();
+  renderInvList();
 }
 
-function refreshInvTotals(invId){
-  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
-  const vr=inv.vatRate||0;
-  const vatEnabled=inv.vatEnabled||(vr>0);
-  const tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-  const vat=vatEnabled?tU*vr/100:0;
-  // Update VAT label
-  const vatLbl=document.getElementById('ivat-label-'+invId);
-  if(vatLbl)vatLbl.innerHTML='VAT '+(vatEnabled&&vr>0
-    ?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`
-    :'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>');
-  // Update VAT badge in the inline editor bar
-  const statusEl=document.querySelector(`#ivat-toggle-${invId}`)?.closest('[style*="background:var(--sf2)"]')?.querySelector('span[style*="color:var(--gr)"], span[style*="color:var(--ye)"]');
-  setH('ivat-'+invId,vatEnabled&&vr>0?mcT(vat):`<span style="font-size:11px;color:var(--tx3);font-family:var(--M)">—</span>`);
-  setH('isub-'+invId,mcT(tU));
-  setH('itot-'+invId,mcT(tU+vat,true));
-  markDirty();
-}
-
-function saveInv(invId){
-  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
-  // Sync VAT state from inline editor
-  const vatToggle=document.getElementById('ivat-toggle-'+invId);
-  if(vatToggle){
-    const checked=vatToggle.checked;
-    inv.vatEnabled=checked;
-    inv.vatRate=checked?parseFloat(document.getElementById('ivat-rate-'+invId)?.value||10):0;
-  }
-  persist();renderInvList();
-  showSyncToast('✅ Invoice saved!','success');
-}
+function saveInv(invId){persist();renderInvList();alert('✅ '+t('Progress saved!'));}
 
 // ═══════════════════════════════════════════════
 // INVOICE EXPORT
@@ -2610,32 +3116,33 @@ function saveInv(invId){
 function exportInv(invId,type){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
-  const vr=(inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0);
+  const vr=inv.vatRate||10;
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
-  const vatEnabled=inv.vatEnabled||(vr>0);
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-  const vat=vatEnabled?tU*vr/100:0;
+  const vat=tU*vr/100;
   if(type==='excel'){
     const wb=XLSX.utils.book_new();const rows=[];
     if(co.name)rows.push([co.name]);if(co.a1)rows.push([co.a1]);rows.push([]);
-    rows.push(['INVOICE','','','No.',inv.num]);
-    rows.push(['Date',inv.date,'','Period',inv.period]);
-    rows.push(['BOQ Ref.',inv.boqNum,'','Client',inv.client||'']);
-    rows.push(['Project',inv.project||'','','Currency',CN[CURR]]);
-    if(hasDisc)rows.push(['Discount Applied',disc.type==='pct'?`${disc.val}% off subtotal`:`Fixed ${eA(disc.amtUSD)} off subtotal`]);
-    if(showXR())rows.push(['Exchange Rates','1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
+    rows.push([t('INVOICE'),'','',t('No.'),inv.num]);
+    rows.push([t('Date'),inv.date,'',t('Period'),inv.period]);
+    rows.push([t('BOQ Ref.'),inv.boqNum,'',t('Client'),inv.client||'']);
+    rows.push([t('Project'),inv.project||'','',t('Currency'),CN[CURR]]);
+    if(hasDisc)rows.push([t('Discount'),disc.type==='pct'?`${disc.val}%`:eA(disc.amtUSD)]);
+    if(showXR())rows.push([t('Exchange Rates'),'1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
     rows.push([]);
-    const boqColHeader=hasDisc?`Contract Value (after ${disc.type==='pct'?disc.val+'% discount':'discount'})`:'Contract Value (BOQ)';
-    rows.push(['No.','Description','Unit',boqColHeader,'Prev%','Prev Amt','This%','This Amount','Cum%','Cum Amt','Remaining']);
+    const boqColHeader=t('Contract Value')+(hasDisc?` (${t('Discount')}: ${disc.type==='pct'?disc.val+'%':eA(disc.amtUSD)})`:'');
+    rows.push([t('No.'),t('Description'),t('Unit'),boqColHeader,
+      t('Previous')+' %',t('Previous'),t('This Invoice')+' %',t('This Invoice'),
+      t('Cumulative')+' %',t('Cumulative'),t('Remaining')]);
     inv.items.forEach((it,i)=>{rows.push([i+1,it.desc,it.unit,eN(it.boqTotal),it.prevPct+'%',eN(it.prevAmt),it.pct+'%',eN(it.amt),it.cumPct+'%',eN(it.cumAmt),eN(it.rem)]);});
     rows.push([]);
-    rows.push(['','','','','','','Subtotal','',eN(tU)]);
-    if(vr>0)rows.push(['','','','','','',`VAT (${vr}%)`,'',eN(vat)]);
-    else rows.push(['','','','','','','VAT','','Excluded']);
-    rows.push(['','','','','','','INVOICE TOTAL','',eN(tU+vat)]);
+    rows.push(['','','','','','',t('Subtotal'),'',eN(tU)]);
+    if(vr>0)rows.push(['','','','','','',t('VAT')+` (${vr}%)`,'',eN(vat)]);
+    else rows.push(['','','','','','',t('VAT'),'',t('Excluded')]);
+    rows.push(['','','','','','',t('INVOICE TOTAL'),'',eN(tU+vat)]);
     const invPo=inv.payObj;
-    if(invPo&&(invPo.bank||invPo.acnum)){rows.push([]);rows.push(['Payment Instructions']);rows.push(['Method',invPo.type||'']);rows.push(['Bank',invPo.bank||'']);rows.push(['Account Name',invPo.acname||'']);rows.push(['Account No.',invPo.acnum||'']);rows.push(['Currency',invPo.curr||'']);}
+    if(invPo&&(invPo.bank||invPo.acnum)){rows.push([]);rows.push([t('Payment Instructions')]);rows.push([t('Method'),invPo.type||'']);rows.push([t('Bank'),invPo.bank||'']);rows.push([t('Account Name'),invPo.acname||'']);rows.push([t('Account No.'),invPo.acnum||'']);rows.push([t('Currency'),invPo.curr||'']);}
     const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:5},{wch:32},{wch:6},{wch:18},{wch:7},{wch:14},{wch:7},{wch:14},{wch:7},{wch:14},{wch:14}];
     XLSX.utils.book_append_sheet(wb,ws,'Invoice');XLSX.writeFile(wb,'Invoice_'+inv.num+'.xlsx');
   } else if(type==='pdf'){
@@ -2648,15 +3155,14 @@ function exportInv(invId,type){
 function buildInvHtml(invId){
   const inv=ST.invoices.find(i=>i.id===invId);
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
-  const color=co.colorInv||co.color||'#1a3bcc',vr=(inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0);
+  const color=co.colorInv||co.color||'#1a3bcc',vr=inv.vatRate||10;
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
-  const vatEnabled=inv.vatEnabled||(vr>0);
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
   let pU=inv.items.reduce((a,i)=>a+(i.prevAmt||0),0);
   let bGRaw=inv.items.reduce((a,i)=>a+(i.boqRawTotal||i.boqTotal||0),0);
   let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);
-  const vat=vatEnabled?tU*vr/100:0;
+  const vat=tU*vr/100;
   const discLabel=hasDisc?(disc.type==='pct'?`Discount (${disc.val}%)`:'Discount'):'';
   const boqColNote=hasDisc?`<br><span style="font-size:8px;color:rgba(255,255,255,.7)">(after ${discLabel})</span>`:'';
   let rows='';let cs='';let idx=0;
@@ -2678,19 +3184,19 @@ function buildInvHtml(invId){
   // Payment block from invoice's own payObj
   const po=inv.payObj;
   const payBlock=(po&&(po.bank||po.acnum))?`<div style="margin-top:14px;border:1px solid #e8ecf0;border-radius:7px;overflow:hidden">
-    <div style="background:${color};padding:6px 13px;font-size:10px;font-weight:700;color:#fff">PAYMENT INSTRUCTIONS</div>
+    <div style="background:${color};padding:6px 13px;font-size:10px;font-weight:700;color:#fff">${t('PAYMENT INSTRUCTIONS')}</div>
     <div style="display:flex;gap:0">
       <div style="flex:1;padding:10px 13px">
         <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:11px">
-          ${po.type?`<div style="color:#888;font-weight:600">Method:</div><div>${esc(po.type)}</div>`:''}
-          ${po.bank?`<div style="color:#888;font-weight:600">Bank:</div><div>${esc(po.bank)}</div>`:''}
-          ${po.acname?`<div style="color:#888;font-weight:600">Account Name:</div><div style="font-weight:600">${esc(po.acname)}</div>`:''}
-          ${po.acnum?`<div style="color:#888;font-weight:600">Account No.:</div><div style="font-weight:700;font-size:13px;font-family:monospace;color:${color}">${esc(po.acnum)}</div>`:''}
-          ${po.curr?`<div style="color:#888;font-weight:600">Currency:</div><div>${po.curr==='ALL'?'USD / THB / LAK':po.curr}</div>`:''}
-          ${po.notes?`<div style="color:#888;font-weight:600">Notes:</div><div>${esc(po.notes)}</div>`:''}
+          ${po.type?`<div style="color:#888;font-weight:600">${t('Method')}:</div><div>${esc(po.type)}</div>`:''}
+          ${po.bank?`<div style="color:#888;font-weight:600">${t('Bank')}:</div><div>${esc(po.bank)}</div>`:''}
+          ${po.acname?`<div style="color:#888;font-weight:600">${t('Account Name')}:</div><div style="font-weight:600">${esc(po.acname)}</div>`:''}
+          ${po.acnum?`<div style="color:#888;font-weight:600">${t('Account No.')}:</div><div style="font-weight:700;font-size:13px;font-family:monospace;color:${color}">${esc(po.acnum)}</div>`:''}
+          ${po.curr?`<div style="color:#888;font-weight:600">${t('Currency')}:</div><div>${po.curr==='ALL'?'USD / THB / LAK':po.curr}</div>`:''}
+          ${po.notes?`<div style="color:#888;font-weight:600">${t('Notes')}:</div><div>${esc(po.notes)}</div>`:''}
         </div>
       </div>
-      ${po.qr?`<div style="padding:10px 13px;border-left:1px solid #e8ecf0;text-align:center"><div style="font-size:9px;color:#888;margin-bottom:3px">QR PAYMENT</div><img src="${po.qr}" style="width:85px;height:85px;object-fit:contain"/></div>`:''}
+      ${po.qr?`<div style="padding:10px 13px;border-left:1px solid #e8ecf0;text-align:center"><div style="font-size:9px;color:#888;margin-bottom:3px">${t('QR PAYMENT')}</div><img src="${po.qr}" style="width:85px;height:85px;object-fit:contain"/></div>`:''}
     </div>
   </div>`:'';
   // Signature
@@ -2700,7 +3206,7 @@ function buildInvHtml(invId){
       <div style="border-top:1px solid #ccc;padding-top:4px">
         <div style="font-size:11px;font-weight:700">${esc(sig.name)}</div>
         ${sig.title?`<div style="font-size:10px;color:#888">${esc(sig.title)}</div>`:''}
-        ${sig.lic?`<div style="font-size:9px;color:#aaa">Lic: ${esc(sig.lic)}</div>`:''}
+        ${sig.lic?`<div style="font-size:9px;color:#aaa">${t('Lic')}: ${esc(sig.lic)}</div>`:''}
       </div>
     </div>
   </div>`:'';
@@ -2715,33 +3221,33 @@ function buildInvHtml(invId){
       <table style="width:100%;border-collapse:collapse;border:1px solid #e8ecf0;font-size:11px">
         <thead><tr style="background:${color}">
           <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:left;width:28px">#</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:left">Description</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:center;width:36px">Unit</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">Contract Value${boqColNote}</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:75px">Previous</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:44px">This%</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">This Amount</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:44px">Cum%</th>
-          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">Remaining</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:left">${t('Description')}</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:center;width:36px">${t('Unit')}</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">${t('Contract Value')}${boqColNote}</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:75px">${t('Previous')}</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:44px">${t('This Invoice')} %</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">${t('This Invoice')}</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:44px">${t('Cumulative')} %</th>
+          <th style="padding:5px 7px;color:#fff;font-size:9px;text-align:right;width:85px">${t('Remaining')}</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px;gap:14px">
         <div>${xrHTML(color)}</div>
         <table style="border-collapse:collapse;min-width:240px;font-size:11px;border:1px solid #e8ecf0">
-          <tr style="background:#f8f9ff"><td style="padding:5px 13px;color:#777">Subtotal</td><td style="padding:5px 13px;text-align:right;font-weight:600">${eA(tU)}</td></tr>
-          ${hasDisc?`<tr style="background:#f0fff8"><td style="padding:5px 13px;color:#27ae60">${discLabel}</td><td style="padding:5px 13px;text-align:right;font-weight:600;color:#27ae60">Included in contract value</td></tr>`:''}
+          <tr style="background:#f8f9ff"><td style="padding:5px 13px;color:#777">${t('Subtotal')}</td><td style="padding:5px 13px;text-align:right;font-weight:600">${eA(tU)}</td></tr>
+          ${hasDisc?`<tr style="background:#f0fff8"><td style="padding:5px 13px;color:#27ae60">${discLabel}</td><td style="padding:5px 13px;text-align:right;font-weight:600;color:#27ae60">${t('Included in contract value')}</td></tr>`:''}
           ${vr>0
-            ?`<tr><td style="padding:5px 13px;color:#777;border-top:1px solid #f0f0f0">VAT (${vr}%)</td><td style="padding:5px 13px;text-align:right;font-weight:600;border-top:1px solid #f0f0f0">${eA(vat)}</td></tr>`
-            :`<tr><td style="padding:5px 13px;color:#999;border-top:1px solid #f0f0f0;font-size:11px">VAT <span style="background:#fff3cd;color:#856404;font-weight:700;padding:1px 5px;border-radius:3px;font-size:10px">Excluded</span></td><td style="padding:5px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">—</td></tr>`}
-          <tr style="background:#fdf5ee"><td style="padding:5px 13px;color:#aaa;border-top:1px solid #f0f0f0">Previous Invoiced</td><td style="padding:5px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">${eA(pU)}</td></tr>
-          <tr style="background:${color}"><td style="padding:8px 13px;color:#fff;font-weight:800;font-size:12px">INVOICE TOTAL</td><td style="padding:8px 13px;text-align:right;color:#fff;font-weight:800;font-size:14px">${eA(tU+vat)}</td></tr>
+            ?`<tr><td style="padding:5px 13px;color:#777;border-top:1px solid #f0f0f0">${t('VAT')} (${vr}%)</td><td style="padding:5px 13px;text-align:right;font-weight:600;border-top:1px solid #f0f0f0">${eA(vat)}</td></tr>`
+            :`<tr><td style="padding:5px 13px;color:#999;border-top:1px solid #f0f0f0;font-size:11px">${t('VAT')} <span style="background:#fff3cd;color:#856404;font-weight:700;padding:1px 5px;border-radius:3px;font-size:10px">${t('Excluded')}</span></td><td style="padding:5px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">—</td></tr>`}
+          <tr style="background:#fdf5ee"><td style="padding:5px 13px;color:#aaa;border-top:1px solid #f0f0f0">${t('Previous Invoiced')}</td><td style="padding:5px 13px;text-align:right;color:#aaa;border-top:1px solid #f0f0f0">${eA(pU)}</td></tr>
+          <tr style="background:${color}"><td style="padding:8px 13px;color:#fff;font-weight:800;font-size:12px">${t('INVOICE TOTAL')}</td><td style="padding:8px 13px;text-align:right;color:#fff;font-weight:800;font-size:14px">${eA(tU+vat)}</td></tr>
         </table>
       </div>
       ${payBlock}${sigBlock}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding-top:8px">
-        <div style="text-align:center;border-top:1px solid #ccc;padding-top:6px;font-size:10px;color:#aaa">Authorized Signature &amp; Stamp</div>
-        <div style="text-align:center;border-top:1px solid #ccc;padding-top:6px;font-size:10px;color:#aaa">Client Acknowledgment</div>
+        <div style="text-align:center;border-top:1px solid #ccc;padding-top:6px;font-size:10px;color:#aaa">${t('Authorized Signature & Stamp')}</div>
+        <div style="text-align:center;border-top:1px solid #ccc;padding-top:6px;font-size:10px;color:#aaa">${t('Client Acknowledgment')}</div>
       </div>
     </div>
     ${docFt(color)}
@@ -2753,8 +3259,8 @@ function buildInvHtml(invId){
 // ═══════════════════════════════════════════════
 function fillRecInvSel(){
   const sel=document.getElementById('rn-inv');sel.innerHTML='<option value="">-- Select Invoice --</option>';
-  ST.invoices.forEach(inv=>{let s=inv.items.reduce((a,i)=>a+(i.amt||0),0);const t=s+s*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
-    sel.innerHTML+=`<option value="${inv.id}">${inv.num} – ${inv.period} (${eA(t)})</option>`;});
+  ST.invoices.forEach(inv=>{let s=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=s+s*(inv.vatRate||10)/100;
+    sel.innerHTML+=`<option value="${inv.id}">${inv.num} – ${inv.period} (${eA(tot)})</option>`;});
   document.getElementById('rn-num').value=`REC-${new Date().getFullYear()}-${String(ST.receipts.length+1).padStart(3,'0')}`;
   document.getElementById('rn-date').value=new Date().toISOString().split('T')[0];
 }
@@ -2800,7 +3306,7 @@ function renderRecList(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+    const tot=sub+sub*(inv?.vatRate||10)/100;
     const card=document.createElement('div');card.className='card';
     card.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;flex-wrap:wrap">
@@ -2845,22 +3351,22 @@ function exportRec(recId,type){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+  const tot=sub+sub*(inv?.vatRate||10)/100;
   const client=inv?.client||boq?.client||'';const project=inv?.project||boq?.project||'';
   if(type==='excel'){
     const wb=XLSX.utils.book_new();const rows=[];
     if(co.name)rows.push([co.name]);if(co.a1)rows.push([co.a1]);rows.push([]);
-    rows.push(['RECEIVED BILL / RECEIPT','','No.',rec.num]);
-    rows.push(['Date',rec.date,'Verified',new Date(rec.verifiedAt||rec.date).toLocaleString()]);
-    rows.push(['Invoice',inv?.num||'','Period',inv?.period||'']);
-    rows.push(['Client',client,'Project',project]);
-    rows.push(['Currency',CN[CURR]]);
-    if(showXR())rows.push(['Exchange Rates','1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
-    rows.push([]);rows.push(['Amount Received',eN(tot)]);rows.push([]);
-    rows.push(['Payment Method',rec.meth]);rows.push(['Bank / Ref.',rec.bank||'']);
-    rows.push(['Received By',rec.by||'']);rows.push(['Remarks',rec.rem||'']);
+    rows.push([t('Received Bill').toUpperCase(),'',t('No.'),rec.num]);
+    rows.push([t('Date'),rec.date,t('Printed'),new Date(rec.verifiedAt||rec.date).toLocaleString()]);
+    rows.push([t('Invoice'),inv?.num||'',t('Period'),inv?.period||'']);
+    rows.push([t('Client'),client,t('Project'),project]);
+    rows.push([t('Currency'),CN[CURR]]);
+    if(showXR())rows.push([t('Exchange Rates'),'1 USD = '+RATES.THB+' THB','1 USD = '+RATES.LAK.toLocaleString()+' LAK']);
+    rows.push([]);rows.push([t('TOTAL AMOUNT RECEIVED'),eN(tot)]);rows.push([]);
+    rows.push([t('Payment Method'),rec.meth]);rows.push([t('Bank / Account Reference'),rec.bank||'']);
+    rows.push([t('Received By'),rec.by||'']);rows.push([t('Remarks'),rec.rem||'']);
     const recPo=rec.showPay!==false&&inv?.payObj;
-    if(recPo&&(recPo.bank||recPo.acnum)){rows.push([]);rows.push(['Payment Instructions']);rows.push(['Bank',recPo.bank||'']);rows.push(['Account Name',recPo.acname||'']);rows.push(['Account No.',recPo.acnum||'']);rows.push(['Currency',recPo.curr||'']);}
+    if(recPo&&(recPo.bank||recPo.acnum)){rows.push([]);rows.push([t('Payment Instructions')]);rows.push([t('Bank'),recPo.bank||'']);rows.push([t('Account Name'),recPo.acname||'']);rows.push([t('Account No.'),recPo.acnum||'']);rows.push([t('Currency'),recPo.curr||'']);}
     const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:22},{wch:32},{wch:20},{wch:32}];
     XLSX.utils.book_append_sheet(wb,ws,'Receipt');XLSX.writeFile(wb,'Receipt_'+rec.num+'.xlsx');
   } else if(type==='pdf'){printDoc(buildRecHtml(recId));}
@@ -2871,18 +3377,18 @@ function buildRecHtml(recId){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+  const tot=sub+sub*(inv?.vatRate||10)/100;
   const client=inv?.client||boq?.client||'';const project=inv?.project||boq?.project||'';
   const color=co.colorRec||co.color||'#1a3bcc';
   let progHTML='';
   if(inv){let bG=inv.items.reduce((a,i)=>a+(i.boqTotal||0),0);let cU=inv.items.reduce((a,i)=>a+(i.cumAmt||0),0);const pct=bG>0?((cU/bG)*100).toFixed(1):0;
     progHTML=`<div style="margin:10px 20px;background:#f8f9ff;border:1px solid #e0e4f0;border-radius:7px;padding:11px 15px">
-      <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color};margin-bottom:7px;letter-spacing:1px">PROJECT PROGRESS</div>
+      <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color};margin-bottom:7px;letter-spacing:1px">${t('Project Progress')}</div>
       <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:7px">
-        <div><div style="font-size:9px;color:#999;margin-bottom:2px">Contract Value</div><div style="font-size:12px;font-weight:700">${eA(bG)}</div></div>
-        <div><div style="font-size:9px;color:#999;margin-bottom:2px">Cumulative Invoiced</div><div style="font-size:12px;font-weight:700;color:${color}">${eA(cU)}</div></div>
-        <div><div style="font-size:9px;color:#999;margin-bottom:2px">Completion</div><div style="font-size:12px;font-weight:700;color:#27ae60">${pct}%</div></div>
-        <div><div style="font-size:9px;color:#999;margin-bottom:2px">Remaining</div><div style="font-size:12px;font-weight:700;color:#e67e22">${eA(bG-cU)}</div></div>
+        <div><div style="font-size:9px;color:#999;margin-bottom:2px">${t('Contract Value')}</div><div style="font-size:12px;font-weight:700">${eA(bG)}</div></div>
+        <div><div style="font-size:9px;color:#999;margin-bottom:2px">${t('Cumulative Invoiced')}</div><div style="font-size:12px;font-weight:700;color:${color}">${eA(cU)}</div></div>
+        <div><div style="font-size:9px;color:#999;margin-bottom:2px">${t('Completion')}</div><div style="font-size:12px;font-weight:700;color:#27ae60">${pct}%</div></div>
+        <div><div style="font-size:9px;color:#999;margin-bottom:2px">${t('Remaining')}</div><div style="font-size:12px;font-weight:700;color:#e67e22">${eA(bG-cU)}</div></div>
       </div>
       <div style="background:#dde2f0;height:6px;border-radius:3px;overflow:hidden"><div style="background:linear-gradient(90deg,${color},${color}88);height:100%;width:${Math.min(pct,100)}%;border-radius:3px"></div></div>
     </div>`;}
@@ -2893,18 +3399,18 @@ function buildRecHtml(recId){
   ],color);
   const rPo=rec.showPay!==false?inv?.payObj:null;
   const payBlock=(rPo&&(rPo.bank||rPo.acnum))?`<div style="margin-top:12px;border:1px solid #e8ecf0;border-radius:7px;overflow:hidden">
-    <div style="background:${color};padding:6px 13px;font-size:10px;font-weight:700;color:#fff">PAYMENT ACCOUNT DETAILS</div>
+    <div style="background:${color};padding:6px 13px;font-size:10px;font-weight:700;color:#fff">${t('PAYMENT ACCOUNT DETAILS')}</div>
     <div style="display:flex;gap:0">
       <div style="flex:1;padding:9px 13px">
         <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:11px">
-          ${rPo.type?`<div style="color:#888;font-weight:600">Method:</div><div>${esc(rPo.type)}</div>`:''}
-          ${rPo.bank?`<div style="color:#888;font-weight:600">Bank:</div><div>${esc(rPo.bank)}</div>`:''}
-          ${rPo.acname?`<div style="color:#888;font-weight:600">Account Name:</div><div style="font-weight:700">${esc(rPo.acname)}</div>`:''}
-          ${rPo.acnum?`<div style="color:#888;font-weight:600">Account No.:</div><div style="font-weight:800;font-size:13px;font-family:monospace;color:${color}">${esc(rPo.acnum)}</div>`:''}
-          ${rPo.curr?`<div style="color:#888;font-weight:600">Currency:</div><div>${rPo.curr==='ALL'?'USD / THB / LAK':rPo.curr}</div>`:''}
+          ${rPo.type?`<div style="color:#888;font-weight:600">${t('Method')}:</div><div>${esc(rPo.type)}</div>`:''}
+          ${rPo.bank?`<div style="color:#888;font-weight:600">${t('Bank')}:</div><div>${esc(rPo.bank)}</div>`:''}
+          ${rPo.acname?`<div style="color:#888;font-weight:600">${t('Account Name')}:</div><div style="font-weight:700">${esc(rPo.acname)}</div>`:''}
+          ${rPo.acnum?`<div style="color:#888;font-weight:600">${t('Account No.')}:</div><div style="font-weight:800;font-size:13px;font-family:monospace;color:${color}">${esc(rPo.acnum)}</div>`:''}
+          ${rPo.curr?`<div style="color:#888;font-weight:600">${t('Currency')}:</div><div>${rPo.curr==='ALL'?'USD / THB / LAK':rPo.curr}</div>`:''}
         </div>
       </div>
-      ${rPo.qr?`<div style="padding:9px 13px;border-left:1px solid #e8ecf0;text-align:center"><div style="font-size:9px;color:#888;margin-bottom:3px">QR PAYMENT</div><img src="${rPo.qr}" style="width:80px;height:80px;object-fit:contain"/></div>`:''}
+      ${rPo.qr?`<div style="padding:9px 13px;border-left:1px solid #e8ecf0;text-align:center"><div style="font-size:9px;color:#888;margin-bottom:3px">${t('QR PAYMENT')}</div><img src="${rPo.qr}" style="width:80px;height:80px;object-fit:contain"/></div>`:''}
     </div>
   </div>`:'';
   return `<div class="a4doc">
@@ -2914,39 +3420,39 @@ function buildRecHtml(recId){
       <div style="text-align:center;margin-bottom:14px">
         <div style="display:inline-flex;align-items:center;gap:6px;background:#e8fff4;border:1.5px solid #27ae60;border-radius:20px;padding:5px 16px;margin-bottom:10px">
           <div style="width:20px;height:20px;border-radius:50%;background:#27ae60;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900">✓</div>
-          <span style="color:#27ae60;font-weight:700;font-size:13px">PAYMENT VERIFIED</span>
+          <span style="color:#27ae60;font-weight:700;font-size:13px">${t('PAYMENT VERIFIED')}</span>
           <span style="color:#aaa;font-size:10px">${new Date(rec.verifiedAt||rec.date).toLocaleString()}</span>
         </div>
       </div>
       <div style="border:2px solid ${color};border-radius:10px;overflow:hidden;margin-bottom:13px">
         <div style="background:${color};padding:14px 20px;text-align:center">
-          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:4px">TOTAL AMOUNT RECEIVED</div>
+          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:4px">${t('TOTAL AMOUNT RECEIVED')}</div>
           <div style="font-size:34px;font-weight:900;color:#fff;letter-spacing:-1px">${eA(tot)}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:3px">${CN[CURR]}</div>
         </div>
         ${showXR()?`<div style="background:#f8f9ff;padding:7px 16px;text-align:center;font-size:10px;color:#888;border-top:1px solid ${color}30">1 USD = ${RATES.THB} THB &nbsp;|&nbsp; 1 USD = ${RATES.LAK.toLocaleString()} LAK</div>`:''}
       </div>
       <table style="width:100%;font-size:11px;border-collapse:collapse;border:1px solid #e8ecf0">
-        <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;width:140px;border-bottom:1px solid #eee">Receipt No.</td><td style="padding:7px 13px;font-weight:600;border-bottom:1px solid #eee">${rec.num}</td></tr>
-        <tr><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Date</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${rec.date}</td></tr>
-        <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Invoice Ref.</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${inv?.num||'—'} – ${inv?.period||''}</td></tr>
-        <tr><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Client</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${client}</td></tr>
-        <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Project</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${project}</td></tr>
-        <tr><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Payment Method</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${rec.meth}</td></tr>
-        ${rec.bank?`<tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Bank / Ref.</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${esc(rec.bank)}</td></tr>`:''}
-        <tr ${!rec.bank?`style="background:${color}10"`:''}><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">Received By</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${rec.by||'—'}</td></tr>
-        ${rec.rem?`<tr><td style="padding:7px 13px;color:#666;font-weight:700">Remarks</td><td style="padding:7px 13px">${esc(rec.rem)}</td></tr>`:''}
+        <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;width:140px;border-bottom:1px solid #eee">${t('Receipt Number')}</td><td style="padding:7px 13px;font-weight:600;border-bottom:1px solid #eee">${rec.num}</td></tr>
+        <tr><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Date')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${rec.date}</td></tr>
+        <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Invoice Ref.')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${inv?.num||'—'} – ${inv?.period||''}</td></tr>
+        <tr><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Client')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${client}</td></tr>
+        <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Project')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${project}</td></tr>
+        <tr><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Payment Method')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${rec.meth}</td></tr>
+        ${rec.bank?`<tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Bank / Account Reference')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${esc(rec.bank)}</td></tr>`:''}
+        <tr ${!rec.bank?`style="background:${color}10"`:''}><td style="padding:7px 13px;color:#666;font-weight:700;border-bottom:1px solid #eee">${t('Received By')}</td><td style="padding:7px 13px;border-bottom:1px solid #eee">${rec.by||'—'}</td></tr>
+        ${rec.rem?`<tr><td style="padding:7px 13px;color:#666;font-weight:700">${t('Remarks')}</td><td style="padding:7px 13px">${esc(rec.rem)}</td></tr>`:''}
       </table>
       ${payBlock}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:30px;padding-top:8px">
         <div style="text-align:center">
           ${sig.img?`<img src="${sig.img}" style="max-height:42px;max-width:120px;object-fit:contain;margin:0 auto;display:block;margin-bottom:3px"/>`:'<div style="height:36px"></div>'}
-          <div style="border-top:1px solid #ccc;padding-top:5px;font-size:10px;color:#aaa">Authorized Signature</div>
+          <div style="border-top:1px solid #ccc;padding-top:5px;font-size:10px;color:#aaa">${t('Authorized Signature')}</div>
           <div style="font-size:10px;font-weight:600;color:#555">${sig.name||''}</div>
         </div>
         <div style="text-align:center">
           <div style="height:36px"></div>
-          <div style="border-top:1px solid #ccc;padding-top:5px;font-size:10px;color:#aaa">Received By Signature</div>
+          <div style="border-top:1px solid #ccc;padding-top:5px;font-size:10px;color:#aaa">${t('Received By')}</div>
           <div style="font-size:10px;font-weight:600;color:#555">${rec.by||''}</div>
         </div>
       </div>
@@ -2961,15 +3467,15 @@ function buildRecHtml(recId){
 function docH(docType,docNum,metaRows,color){
   color=color||co.color||'#1a3bcc';
   const logoSide=co.logo?`<img src="${co.logo}" style="max-height:56px;max-width:140px;object-fit:contain"/>`:`<div style="font-size:18px;font-weight:900;color:${color};letter-spacing:-1px">${co.name?esc(co.name):''}</div>`;
-  const coInfo=`${co.name?`<div style="font-size:13px;font-weight:800;color:${color}">${esc(co.name)}</div>`:''}${co.tag?`<div style="font-size:10px;color:#888">${esc(co.tag)}</div>`:''}${co.a1?`<div style="font-size:10px;color:#777">${esc(co.a1)}</div>`:''}${co.a2?`<div style="font-size:10px;color:#777">${esc(co.a2)}</div>`:''}${co.ph?`<div style="font-size:10px;color:#777">Tel: ${esc(co.ph)}</div>`:''}${co.em?`<div style="font-size:10px;color:#777">${esc(co.em)}</div>`:''}${co.tax?`<div style="font-size:9px;color:#aaa">Tax ID: ${esc(co.tax)}</div>`:''}`;
-  const meta=metaRows.map(([k,val])=>`<tr><td style="padding:3px 10px 3px 0;color:#888;font-size:11px;white-space:nowrap;vertical-align:top">${k}</td><td style="padding:3px 0;font-size:11px;font-weight:600;color:#333">${val||'—'}</td></tr>`).join('');
+  const coInfo=`${co.name?`<div style="font-size:13px;font-weight:800;color:${color}">${esc(co.name)}</div>`:''}${co.tag?`<div style="font-size:10px;color:#888">${esc(co.tag)}</div>`:''}${co.a1?`<div style="font-size:10px;color:#777">${esc(co.a1)}</div>`:''}${co.a2?`<div style="font-size:10px;color:#777">${esc(co.a2)}</div>`:''}${co.ph?`<div style="font-size:10px;color:#777">${t('Tel')}: ${esc(co.ph)}</div>`:''}${co.em?`<div style="font-size:10px;color:#777">${esc(co.em)}</div>`:''}${co.tax?`<div style="font-size:9px;color:#aaa">${t('Tax ID')}: ${esc(co.tax)}</div>`:''}`;
+  const meta=metaRows.map(([k,val])=>`<tr><td style="padding:3px 10px 3px 0;color:#888;font-size:11px;white-space:nowrap;vertical-align:top">${t(k)}</td><td style="padding:3px 0;font-size:11px;font-weight:600;color:#333">${val||'—'}</td></tr>`).join('');
   return `<div style="border-bottom:3px solid ${color}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px 12px">
       <div style="display:flex;flex-direction:column;gap:7px;max-width:46%">${logoSide}<div>${coInfo}</div></div>
       <div style="text-align:right">
-        <div style="font-size:26px;font-weight:900;color:${color};letter-spacing:-1px;line-height:1">${docType}</div>
+        <div style="font-size:26px;font-weight:900;color:${color};letter-spacing:-1px;line-height:1">${t(docType)}</div>
         <div style="font-size:13px;font-weight:700;color:#555;margin-top:2px">${docNum}</div>
-        <div style="margin-top:6px;font-size:11px;color:#888">Currency: <b style="color:${color}">${FLAG[CURR]} ${CN[CURR]}</b></div>
+        <div style="margin-top:6px;font-size:11px;color:#888">${t('Currency')}: <b style="color:${color}">${FLAG[CURR]} ${CN[CURR]}</b></div>
         ${showXR()?`<div style="margin-top:3px;font-size:9px;color:#aaa">1 USD = ${RATES.THB} THB | 1 USD = ${RATES.LAK.toLocaleString()} LAK</div>`:''}
       </div>
     </div>
@@ -2983,7 +3489,7 @@ function docFt(color){
   return `<div style="border-top:2px solid ${color}18;padding:7px 20px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#bbb;margin-top:14px">
     <div>${co.name?esc(co.name):''}${co.web?(co.name?' · ':'')+esc(co.web):''}</div>
     <div>${showXR()?`1 USD = ${RATES.THB} THB | 1 USD = ${RATES.LAK.toLocaleString()} LAK`:''}</div>
-    <div>Printed: ${new Date().toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'})}</div>
+    <div>${t('Printed')}: ${new Date().toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'})}</div>
   </div>`;
 }
 
@@ -2992,16 +3498,18 @@ function docFt(color){
 // ═══════════════════════════════════════════════
 function printDoc(html){
   const win=window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;}.a4doc{width:794px;margin:0 auto;background:#fff;}
+  win.document.write(`<!DOCTYPE html><html lang="${LANG}"><head><meta charset="UTF-8">
+  ${docFontLink()}
+  <style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#fff;font-family:${docFontStack()};}.a4doc{width:794px;margin:0 auto;background:#fff;}
   @media print{@page{size:A4 portrait;margin:0;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.a4doc{width:100%;max-width:none;}}
   </style></head><body>${html}<script>window.onload=()=>{setTimeout(()=>window.print(),500);}<\/script></body></html>`);
   win.document.close();
 }
 async function htmlToJPEG(html,filename){
   const wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1;font-family:Segoe UI,Arial,sans-serif;';
-  wrap.innerHTML=`<style>.a4doc{width:794px;background:#fff;font-family:Segoe UI,Arial,sans-serif;}</style>`+html;
+  wrap.setAttribute('data-no-i18n','');// already built in the selected language
+  wrap.style.cssText='position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1;font-family:'+docFontStack()+';';
+  wrap.innerHTML=`<style>.a4doc{width:794px;background:#fff;font-family:${docFontStack()};}</style>`+html;
   document.body.appendChild(wrap);
   await new Promise(r=>setTimeout(r,500));
   try{
@@ -3075,7 +3583,7 @@ function populateReceiptSelector(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+    const tot=sub+sub*(inv?.vatRate||10)/100;
     const label=`${rec.num} — ${inv?.period||''} · ${inv?.client||boq?.client||''} · ${fa(cv(tot))}`;
     sel.innerHTML+=`<option value="${rec.id}">${label}</option>`;
   });
@@ -3090,7 +3598,7 @@ function applyReceiptToFin(){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const totUSD=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+  const totUSD=sub+sub*(inv?.vatRate||10)/100;
 
   // Fill the form fields from receipt
   document.getElementById('fin-date').value=rec.date||'';
@@ -3197,7 +3705,7 @@ function syncReceiptsToFIN(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+    const tot=sub+sub*(inv?.vatRate||10)/100;
     if(tot<=0) return;
 
     const existing = FIN.find(f=>f.auto && f.ref===rec.id);
@@ -3389,7 +3897,7 @@ function renderDash(){
   let invoicedTotal=0,invoicedThisMonth=0,invoicedLastMonth=0;
   ST.invoices.forEach(inv=>{
     const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-    const vat=sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;const tot=sub+vat;
+    const vat=sub*(inv.vatRate||10)/100;const tot=sub+vat;
     invoicedTotal+=tot;
     if(inv.date.startsWith(thisMonth))invoicedThisMonth+=tot;
     if(inv.date.startsWith(lastMonthStr))invoicedLastMonth+=tot;
@@ -3400,7 +3908,7 @@ function renderDash(){
   ST.receipts.forEach(rec=>{
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+    const tot=sub+sub*(inv?.vatRate||10)/100;
     receivedTotal+=tot;
     if(rec.date.startsWith(thisMonth))receivedThisMonth+=tot;
     if(rec.date.startsWith(lastMonthStr))receivedLastMonth+=tot;
@@ -3434,14 +3942,14 @@ function renderDash(){
   ST.invoices.forEach(inv=>{
     const k=inv.date?.slice(0,7);if(!monthBuckets[k])return;
     if(yearSel!=='all'&&!k.startsWith(yearSel))return;
-    const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);monthBuckets[k].invoiced+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);
+    const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);monthBuckets[k].invoiced+=cv(sub+sub*(inv.vatRate||10)/100);
   });
   ST.receipts.forEach(rec=>{
     const k=rec.date?.slice(0,7);if(!monthBuckets[k])return;
     if(yearSel!=='all'&&!k.startsWith(yearSel))return;
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    monthBuckets[k].received+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);
+    monthBuckets[k].received+=cv(sub+sub*(inv?.vatRate||10)/100);
   });
   const mKeys=Object.keys(monthBuckets).sort();
   const mLabels=mKeys.map(k=>monthBuckets[k].label);
@@ -3476,11 +3984,11 @@ function renderDash(){
     projData[b.num]={label:b.project||b.num,boq:cv(sub-disc+vat),inv:0,rec:0};
   });
   ST.invoices.forEach(inv=>{
-    if(projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].inv+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);}
+    if(projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].inv+=cv(sub+sub*(inv.vatRate||10)/100);}
   });
   ST.receipts.forEach(rec=>{
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
-    if(inv&&projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].rec+=cv(sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100);}
+    if(inv&&projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].rec+=cv(sub+sub*(inv.vatRate||10)/100);}
   });
   const pKeys=Object.keys(projData);
   makeChart('chart-compare',{
@@ -3510,11 +4018,11 @@ function renderDash(){
     [...ST.receipts].slice(-5).reverse().forEach(rec=>{
       const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
       const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-      const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+      const tot=sub+sub*(inv?.vatRate||10)/100;
       acts.push({icon:'✅',bg:'rgba(30,217,122,.15)',date:rec.date,desc:`Receipt ${rec.num} — ${inv?.period||''}`,sub:`Client: ${inv?.client||'—'}`,amt:tot,color:'var(--gr)'});
     });
     [...ST.invoices].slice(-5).reverse().forEach(inv=>{
-      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=sub+sub*((inv.vatEnabled||(inv.vatRate||0)>0?(inv.vatRate||0):0))/100;
+      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=sub+sub*(inv.vatRate||10)/100;
       acts.push({icon:'🧾',bg:'rgba(245,200,66,.15)',date:inv.date,desc:`Invoice ${inv.num} — ${inv.period}`,sub:`Project: ${inv.project||'—'}`,amt:tot,color:'var(--ye)'});
     });
     acts.sort((a,b)=>b.date.localeCompare(a.date));
@@ -3666,8 +4174,8 @@ let currentTheme = {
 
 function loadTheme(){
   try{
-    const t=localStorage.getItem('cb_theme');
-    if(t) currentTheme=JSON.parse(t);
+    const saved=localStorage.getItem('cb_theme');
+    if(saved) currentTheme=JSON.parse(saved);
   }catch(e){}
   applyTheme(currentTheme.vars, currentTheme.font, currentTheme.radius);
 }
@@ -3689,7 +4197,9 @@ function applyTheme(vars, font, radius){
   if(v.tx) root.style.setProperty('--tx',v.tx);
   if(v.tx2) root.style.setProperty('--tx2',v.tx2);
   if(v.tx3) root.style.setProperty('--tx3',v.tx3);
-  if(font) root.style.setProperty('--F',font);
+  // Keep the Lao/Thai/Chinese webfont in front of the theme font so the
+  // chosen Latin face still applies but non-Latin glyphs always render.
+  if(font) root.style.setProperty('--F',(LANGS[LANG]?.font||'')+font);
   if(radius) root.style.setProperty('--R',radius);
   // Update select options background
   document.querySelectorAll('select option').forEach(o=>o.style.background=v.sf2||'');
@@ -3927,10 +4437,11 @@ function previewDoc(type, id){
     }
 
     // Wrap in a full HTML document for the iframe
-    const fullDoc = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    const fullDoc = `<!DOCTYPE html><html lang="${LANG}"><head><meta charset="UTF-8">
+      ${docFontLink()}
       <style>
         *{box-sizing:border-box;margin:0;padding:0;}
-        html,body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;width:794px;}
+        html,body{background:#fff;font-family:${docFontStack()};width:794px;}
         .a4doc{width:794px;background:#fff;}
         @media print{
           @page{size:A4 portrait;margin:0;}
@@ -4318,9 +4829,18 @@ async function finishLogin(user,remember){
 }
 
 async function loadUserState(){
-  if(GAS_URL&&authUser?.token&&!authUser.token.startsWith('local_')&&!authUser.token.startsWith('demo_')){
+  if(isCloudAccount()){
     const loaded=await loadFromCloud();
-    if(loaded)return;
+    if(loaded){
+      // The cloud bundle just rewrote the cb_* keys — pull them back into
+      // the in-memory globals so company/clients/theme are live right away.
+      hydrateFromStorage();
+      refreshAfterCloudLoad();
+      return;
+    }
+    // Nothing in the cloud yet (new account): fall through to local data and
+    // push it up so this device becomes the source of truth.
+    if(_cloudLoaded) setTimeout(()=>queueSync(),1500);
   }
   const key=authUser?.email?'cb_st3_'+btoa(authUser.email):'cb_st3';
   try{const saved=localStorage.getItem(key)||localStorage.getItem('cb_st3');if(saved)ST=JSON.parse(saved);}catch(e){}
@@ -4353,9 +4873,15 @@ function updateNavUser(){
   sep.parentNode.insertBefore(ud,sep.nextSibling);
 }
 
-function doLogout(){
-  if(!confirm('Sign out of ConstroBill?'))return;
-  if(_syncPending&&GAS_URL&&authUser?.token)syncToCloud();
+async function doLogout(){
+  if(!confirm(t('Sign out of ConstroBill?')))return;
+  // Flush pending edits BEFORE clearing the session — the old version fired
+  // syncToCloud() and reloaded the page immediately, cancelling the request.
+  if(_syncPending&&isCloudAccount()){
+    showSyncStatus('saving');
+    const ok=await syncToCloud();
+    if(!ok&&!confirm(t('Some changes could not be uploaded.')+'\n\n'+_lastSyncErr+'\n\n'+t('Sign out anyway?')))return;
+  }
   localStorage.removeItem('cb_session');sessionStorage.removeItem('cb_session');
   authUser=null;ST={boqs:[],invoices:[],receipts:[]};location.reload();
 }

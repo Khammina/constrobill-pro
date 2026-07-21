@@ -101,6 +101,7 @@ Open your live URL and verify:
 - 🧾 Progress Invoice with cumulative tracking
 - ✅ Received Bill with payment verification
 - 💰 Finance Tracker & Dashboard
+- 🌐 Interface + documents in English / ລາວ / ไทย / 中文
 - 💱 Multi-currency: USD / THB / LAK with live exchange rates
 - 📄 Export to PDF (A4/A3/Letter), Excel, JPEG
 - 🎨 12 UI Themes + custom colors
@@ -335,6 +336,45 @@ This architecture means:
 
 ---
 
+## PART 4.5 — Upgrading an Existing Installation (v2)
+
+> Do this if you already deployed an earlier version. **The backend fixes only take effect after a new deployment version** — pasting the code is not enough.
+
+### Step 4.5.1 — Update the Apps Script
+
+1. Open your Google Sheet → **Extensions → Apps Script**
+2. Select all the old code and delete it
+3. Paste the whole of the new `gas-server.gs`
+4. **💾 Save**
+5. Click **Deploy → Manage deployments**
+6. Click the **✏ pencil** on your existing deployment
+7. Set **Version** to **New version**, then click **Deploy**
+
+> ⚠ If you skip step 5–7 the old code keeps running and sync will keep failing.
+
+### Step 4.5.2 — Clean up the old audit log (one time)
+
+Earlier versions wrote a row to `AuditLog` on *every* autosave, which can leave
+tens of thousands of rows and slow every request down.
+
+1. In Apps Script, select **`trimAuditLog`** from the function dropdown → **▶ Run**
+2. Optional: run **`reportStorage`** to see how much space each user is using
+
+### Step 4.5.3 — What changed in the backend
+
+| Problem | Fix |
+|---|---|
+| Saving one key overwrote a different key's row | Rows are now matched on user **and** key |
+| Data over 50,000 characters (logos, QR images) silently failed to save | Payload is split into chunks below the cell limit |
+| Every save read every user's full data blob → timeouts | Only index columns are read; the blob is fetched by row |
+| Two devices saving at once could corrupt the stored JSON | Writes are serialised with a script lock |
+| `AuditLog` grew without limit | Only auth events are logged |
+
+Your existing data is read as-is — the new code understands both the old
+single-row format and the new chunked format, so nothing needs migrating.
+
+---
+
 ## PART 5 — Updating the App
 
 When you want to release a new version:
@@ -376,6 +416,24 @@ When you want to release a new version:
 - If it shows "Local" — the GAS_URL is not set
 - Check the `UserData` sheet has rows for that user
 
+### "⚠ Sync failed" badge in the bottom-right corner
+- **Click the badge** — it retries and its tooltip shows the exact server error
+- The app retries on its own after 5s, 15s and 45s
+- If the error mentions a cell limit or a timeout, you are on the old backend:
+  follow **Part 4.5** to redeploy `gas-server.gs` as a **new version**
+
+### "⚠ Offline — saved on this device only"
+This means the app could not *read* your cloud data at sign-in, so it refuses
+to upload over it — otherwise a bad connection would wipe your cloud copy with
+whatever happens to be in this browser. Your work is safe locally. Click the
+badge once you have a connection and it will load, merge and resume syncing.
+
+### Company / clients / signature don't appear on my other device
+Fixed in v2 — company profile, clients, payment profiles, signatures, terms,
+finance entries, theme and language are all uploaded now, not just BOQs and
+invoices. Sign in on the original device once so it uploads the full bundle,
+then sign in on the second device.
+
 ### Apps Script permission error
 - Re-run `initSheets()` and accept permissions again
 - Make sure "Who has access" is set to **Anyone** (not "Anyone with link")
@@ -399,6 +457,8 @@ When you want to release a new version:
 | Session expiry | 30 days |
 | Reset link expiry | 2 hours |
 | Supported currencies | USD, THB, LAK |
+| Supported languages | English, ລາວ (Lao), ไทย (Thai), 中文 (Chinese) |
+| Max cloud payload per user | unlimited (auto-chunked at 45,000 chars/cell) |
 | Export formats | PDF (A4/A3/Letter), Excel (.xlsx), JPEG |
 | Themes | 12 presets + full custom |
 
