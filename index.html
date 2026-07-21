@@ -200,6 +200,66 @@
       border-color: #9b59b6;
     }
 
+    .cbtn.cny.active {
+      background: #8a2d15;
+      border-color: #e17055;
+    }
+
+    /* ─ FIX PRICE TO … (BOQ price anchor) ─ */
+    .fxg {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .fxbtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 11px;
+      border-radius: 6px;
+      border: 1px solid var(--bd);
+      background: var(--sf2);
+      color: var(--tx2);
+      cursor: pointer;
+      font-family: var(--M);
+      font-size: 11px;
+      font-weight: 700;
+      transition: all .15s;
+    }
+
+    .fxbtn:hover {
+      border-color: var(--ac);
+      color: var(--ac);
+    }
+
+    .fxbtn.active {
+      color: #fff;
+      background: var(--ac);
+      border-color: var(--ac);
+      box-shadow: 0 0 0 2px rgba(79, 124, 255, .18);
+    }
+
+    .fxbtn.active::after {
+      content: '🔒';
+      font-size: 9px;
+    }
+
+    .fxnote {
+      font-size: 10px;
+      color: var(--tx3);
+      line-height: 1.5;
+    }
+
+    .pcur {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--tx3);
+      font-family: var(--M);
+      margin-right: 3px;
+    }
+
     .rg {
       display: flex;
       align-items: center;
@@ -2462,6 +2522,7 @@
       <button class="cbtn usd active" id="cbtn-USD" onclick="setCurr('USD')">🇺🇸 USD</button>
       <button class="cbtn thb" id="cbtn-THB" onclick="setCurr('THB')">🇹🇭 THB</button>
       <button class="cbtn lak" id="cbtn-LAK" onclick="setCurr('LAK')">🇱🇦 LAK</button>
+      <button class="cbtn cny" id="cbtn-CNY" onclick="setCurr('CNY')">🇨🇳 CNY</button>
     </div>
     <!-- Exchange rate toggle: show/hide the rate inputs -->
     <label class="xrtog" style="margin-left:4px" title="Show / hide exchange rate inputs">
@@ -2474,6 +2535,9 @@
       </div>
       <div class="rg"><label>1 USD =</label><input class="ri" id="rate-lak" type="number" value="21500" step="100"
           min="1" oninput="onRate()" /><span class="rbg" style="background:rgba(142,68,173,.2);color:#9b59b6">LAK</span>
+      </div>
+      <div class="rg"><label>1 USD =</label><input class="ri" id="rate-cny" type="number" value="7.15" step="0.01"
+          min="1" oninput="onRate()" /><span class="rbg" style="background:rgba(214,48,49,.2);color:#e17055">CNY</span>
       </div>
       <button class="lbtn" id="live-btn" onclick="liveRates()">⚡ Live</button>
       <span class="ru" id="rate-upd"></span>
@@ -2519,15 +2583,21 @@
           <div class="fm"><label>Project Name</label><input id="boq-project" placeholder="Project name" /></div>
           <div class="fm"><label>Location</label><input id="boq-location" placeholder="Site address" /></div>
           <div class="fm"><label>Prepared By</label><input id="boq-prepby" placeholder="Your name" /></div>
-          <div class="fm"><label>Input Currency</label>
-            <select id="boq-ic" onchange="renderBOQ()">
-              <option value="USD">🇺🇸 USD</option>
-              <option value="THB">🇹🇭 THB</option>
-              <option value="LAK">🇱🇦 LAK</option>
-            </select>
-          </div>
           <div class="fm"><label>VAT / Tax %</label><input id="boq-vat" type="number" value="10" min="0" max="100"
               oninput="calcBOQ()" /></div>
+        </div>
+        <!-- PRICE ANCHOR — unit prices are stored in this currency and never
+             re-priced when the exchange rates move. -->
+        <div class="fm" style="margin-top:11px;padding-top:11px;border-top:1px solid var(--bd)">
+          <label>Fix Price To</label>
+          <input type="hidden" id="boq-ic" value="USD" />
+          <div class="fxg">
+            <button type="button" class="fxbtn active" id="fx-USD" onclick="fixPriceTo('USD')">🇺🇸 USD</button>
+            <button type="button" class="fxbtn" id="fx-LAK" onclick="fixPriceTo('LAK')">🇱🇦 LAK</button>
+            <button type="button" class="fxbtn" id="fx-THB" onclick="fixPriceTo('THB')">🇹🇭 THB</button>
+            <button type="button" class="fxbtn" id="fx-CNY" onclick="fixPriceTo('CNY')">🇨🇳 CNY</button>
+          </div>
+          <div class="fxnote" style="margin-top:6px" id="fx-note"></div>
         </div>
       </div>
       <div class="card">
@@ -2851,6 +2921,7 @@
             <option value="USD">🇺🇸 USD</option>
             <option value="THB">🇹🇭 THB</option>
             <option value="LAK">🇱🇦 LAK</option>
+            <option value="CNY">🇨🇳 CNY</option>
           </select>
         </div>
         <div class="fm"><label>Amount *</label>
@@ -3050,6 +3121,7 @@
                 <option value="USD">🇺🇸 USD</option>
                 <option value="THB">🇹🇭 THB</option>
                 <option value="LAK">🇱🇦 LAK</option>
+                <option value="CNY">🇨🇳 CNY</option>
                 <option value="ALL">All Currencies</option>
               </select>
             </div>
@@ -3390,6 +3462,7 @@
                   <option value="USD">USD</option>
                   <option value="THB">THB</option>
                   <option value="LAK">LAK</option>
+                  <option value="CNY">CNY</option>
                   <option value="ALL">All</option>
                 </select>
               </div>
@@ -3459,22 +3532,24 @@
     // CURRENCY ENGINE
     // ═══════════════════════════════════════════════
     let CURR = 'USD';
-    let RATES = { USD: 1, THB: 35.5, LAK: 21500 };
-    const SYM = { USD: '$', THB: '฿', LAK: '₭' };
-    const FLAG = { USD: '🇺🇸', THB: '🇹🇭', LAK: '🇱🇦' };
-    const CN = { USD: 'US Dollar (USD)', THB: 'Thai Baht (THB)', LAK: 'Lao Kip (LAK)' };
-    const DC = { USD: 2, THB: 2, LAK: 0 };
+    let RATES = { USD: 1, THB: 35.5, LAK: 21500, CNY: 7.15 };
+    const CURS = ['USD', 'THB', 'LAK', 'CNY'];   // every currency the app knows
+    const RDEF = { THB: 35.5, LAK: 21500, CNY: 7.15 };  // fallback rates
+    const SYM = { USD: '$', THB: '฿', LAK: '₭', CNY: '¥' };
+    const FLAG = { USD: '🇺🇸', THB: '🇹🇭', LAK: '🇱🇦', CNY: '🇨🇳' };
+    const CN = { USD: 'US Dollar (USD)', THB: 'Thai Baht (THB)', LAK: 'Lao Kip (LAK)', CNY: 'Chinese Yuan (CNY)' };
+    const DC = { USD: 2, THB: 2, LAK: 0, CNY: 2 };
     function tu(a, c) { return a / (RATES[c || 'USD'] || 1); }
     function cv(u, c) { return u * (RATES[c || CURR] || 1); }
     function fa(n, c) { c = c || CURR; n = Number(n || 0); if (c === 'LAK') return SYM[c] + n.toLocaleString('en-US', { maximumFractionDigits: 0 }); return SYM[c] + n.toLocaleString('en-US', { minimumFractionDigits: DC[c], maximumFractionDigits: DC[c] }); }
     function fn2(n) { return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-    function mcC(u) { const m = fa(cv(u)); const s = ['USD', 'THB', 'LAK'].filter(c => c !== CURR).map(c => `${FLAG[c]}${fa(cv(u, c), c)}`).join(' '); return `<div style="text-align:right"><div style="font-family:var(--M);font-size:12px;font-weight:600">${m}</div><div style="font-size:10px;color:var(--tx3);font-family:var(--M)">${s}</div></div>`; }
-    function mcT(u, grand) { const m = fa(cv(u)); const s = ['USD', 'THB', 'LAK'].filter(c => c !== CURR).map(c => `${FLAG[c]} ${fa(cv(u, c), c)}`).join(' &nbsp; '); return `<div style="text-align:right"><div style="font-family:var(--M);font-size:${grand ? '16px' : '13px'};font-weight:700;color:${grand ? 'var(--ac)' : 'var(--tx)'}">${m}</div><div style="font-size:10px;color:var(--tx3);font-family:var(--M)">${s}</div></div>`; }
+    function mcC(u) { const m = fa(cv(u)); const s = CURS.filter(c => c !== CURR).map(c => `${FLAG[c]}${fa(cv(u, c), c)}`).join(' '); return `<div style="text-align:right"><div style="font-family:var(--M);font-size:12px;font-weight:600">${m}</div><div style="font-size:10px;color:var(--tx3);font-family:var(--M)">${s}</div></div>`; }
+    function mcT(u, grand) { const m = fa(cv(u)); const s = CURS.filter(c => c !== CURR).map(c => `${FLAG[c]} ${fa(cv(u, c), c)}`).join(' &nbsp; '); return `<div style="text-align:right"><div style="font-family:var(--M);font-size:${grand ? '16px' : '13px'};font-weight:700;color:${grand ? 'var(--ac)' : 'var(--tx)'}">${m}</div><div style="font-size:10px;color:var(--tx3);font-family:var(--M)">${s}</div></div>`; }
     function eA(u) { return fa(cv(u), CURR); }
     function eN(u) { return Number(cv(u).toFixed(DC[CURR])); }
     function showXR() { return document.getElementById('show-xr')?.checked; }
-    function xrHTML(color) { if (!showXR()) return ''; return `<div style="display:inline-flex;align-items:center;gap:0;border:1px solid #dde1f0;border-radius:5px;overflow:hidden;font-size:10px;background:#f8f9ff"><div style="padding:4px 9px;background:${color}18;font-weight:700;color:${color};border-right:1px solid #dde1f0">${t('Exchange Rates')}</div><div style="padding:4px 9px;border-right:1px solid #dde1f0">🇺🇸 1 USD = <b>${RATES.THB.toFixed(2)}</b> 🇹🇭 THB</div><div style="padding:4px 9px">🇺🇸 1 USD = <b>${RATES.LAK.toLocaleString()}</b> 🇱🇦 LAK</div></div>`; }
-    function setCurr(c) { CURR = c;['USD', 'THB', 'LAK'].forEach(x => { const b = document.getElementById('cbtn-' + x); if (b) b.classList.toggle('active', x === c); }); refreshAll(); }
+    function xrHTML(color) { if (!showXR()) return ''; return `<div style="display:inline-flex;align-items:center;gap:0;border:1px solid #dde1f0;border-radius:5px;overflow:hidden;font-size:10px;background:#f8f9ff"><div style="padding:4px 9px;background:${color}18;font-weight:700;color:${color};border-right:1px solid #dde1f0">${t('Exchange Rates')}</div>${CURS.filter(c => c !== 'USD').map((c, i, a) => `<div style="padding:4px 9px${i < a.length - 1 ? ';border-right:1px solid #dde1f0' : ''}">🇺🇸 1 USD = <b>${DC[c] ? RATES[c].toFixed(2) : Math.round(RATES[c]).toLocaleString()}</b> ${FLAG[c]} ${c}</div>`).join('')}</div>`; }
+    function setCurr(c) { CURR = c; CURS.forEach(x => { const b = document.getElementById('cbtn-' + x); if (b) b.classList.toggle('active', x === c); }); refreshAll(); }
     function toggleRateInputs() {
       const show = document.getElementById('show-rates')?.checked;
       const grp = document.getElementById('rate-inputs-group');
@@ -3500,8 +3575,20 @@
       }
       return (pay.bank || pay.acnum) ? { ...pay } : null;
     }
-    function onRate() { RATES.THB = parseFloat(document.getElementById('rate-thb').value) || 35.5; RATES.LAK = parseFloat(document.getElementById('rate-lak').value) || 21500; localStorage.setItem('cb_rates', JSON.stringify({ THB: RATES.THB, LAK: RATES.LAK })); refreshAll(); }
-    async function liveRates() { const btn = document.getElementById('live-btn'); btn.classList.add('loading'); btn.textContent = '⏳'; try { const r = await fetch('https://open.er-api.com/v6/latest/USD'); const d = await r.json(); if (d.rates) { if (d.rates.THB) { RATES.THB = d.rates.THB; document.getElementById('rate-thb').value = RATES.THB.toFixed(2); } if (d.rates.LAK) { RATES.LAK = d.rates.LAK; document.getElementById('rate-lak').value = Math.round(RATES.LAK); } localStorage.setItem('cb_rates', JSON.stringify({ THB: RATES.THB, LAK: RATES.LAK })); document.getElementById('rate-upd').textContent = '✓ ' + new Date().toLocaleTimeString(); refreshAll(); } } catch (e) { document.getElementById('rate-upd').textContent = '⚠ Failed'; } btn.classList.remove('loading'); btn.textContent = '⚡ Live'; }
+    function saveRates() { localStorage.setItem('cb_rates', JSON.stringify({ THB: RATES.THB, LAK: RATES.LAK, CNY: RATES.CNY })); }
+    // "1 USD = … " line used by every export / preview footer.
+    function xrPairs() { return CURS.filter(c => c !== 'USD').map(c => '1 USD = ' + (DC[c] ? RATES[c].toFixed(2) : Math.round(RATES[c]).toLocaleString()) + ' ' + c); }
+    function xrLine(sep) { return xrPairs().join(sep || ' | '); }
+    // Rates only affect the CONVERTED columns — every unit price stays pinned to
+    // the currency it was typed in (see syncPrices), so editing a rate never
+    // rewrites the number the user entered.
+    function onRate() {
+      RATES.THB = parseFloat(document.getElementById('rate-thb')?.value) || RDEF.THB;
+      RATES.LAK = parseFloat(document.getElementById('rate-lak')?.value) || RDEF.LAK;
+      RATES.CNY = parseFloat(document.getElementById('rate-cny')?.value) || RDEF.CNY;
+      saveRates(); refreshAll();
+    }
+    async function liveRates() { const btn = document.getElementById('live-btn'); btn.classList.add('loading'); btn.textContent = '⏳'; try { const r = await fetch('https://open.er-api.com/v6/latest/USD'); const d = await r.json(); if (d.rates) { if (d.rates.THB) { RATES.THB = d.rates.THB; document.getElementById('rate-thb').value = RATES.THB.toFixed(2); } if (d.rates.LAK) { RATES.LAK = d.rates.LAK; document.getElementById('rate-lak').value = Math.round(RATES.LAK); } if (d.rates.CNY) { RATES.CNY = d.rates.CNY; document.getElementById('rate-cny').value = RATES.CNY.toFixed(2); } saveRates(); document.getElementById('rate-upd').textContent = '✓ ' + new Date().toLocaleTimeString(); refreshAll(); } } catch (e) { document.getElementById('rate-upd').textContent = '⚠ Failed'; } btn.classList.remove('loading'); btn.textContent = '⚡ Live'; }
 
     // ═══════════════════════════════════════════════
     // GLOBAL STATE
@@ -3527,13 +3614,24 @@
     function hydrateFromStorage() {
       try { const s = localStorage.getItem('cb_st3'); if (s) ST = JSON.parse(s); } catch (e) { }
       try { const c = localStorage.getItem('cb_cl'); if (c) CL = JSON.parse(c); } catch (e) { }
-      try { const r = localStorage.getItem('cb_rates'); if (r) { const p = JSON.parse(r); RATES.THB = p.THB || 35.5; RATES.LAK = p.LAK || 21500; const rt = document.getElementById('rate-thb'), rl = document.getElementById('rate-lak'); if (rt) rt.value = RATES.THB; if (rl) rl.value = RATES.LAK; } } catch (e) { }
+      try { const r = localStorage.getItem('cb_rates'); if (r) { const p = JSON.parse(r); RATES.THB = p.THB || RDEF.THB; RATES.LAK = p.LAK || RDEF.LAK; RATES.CNY = p.CNY || RDEF.CNY; const rt = document.getElementById('rate-thb'), rl = document.getElementById('rate-lak'), rc = document.getElementById('rate-cny'); if (rt) rt.value = RATES.THB; if (rl) rl.value = RATES.LAK; if (rc) rc.value = RATES.CNY; } } catch (e) { }
       try { const c = localStorage.getItem('cb_co'); if (c) co = Object.assign(co, JSON.parse(c)); } catch (e) { }
       try { const p = localStorage.getItem('cb_pay'); if (p) pay = Object.assign(pay, JSON.parse(p)); } catch (e) { }
       try { const s = localStorage.getItem('cb_sig'); if (s) sig = Object.assign(sig, JSON.parse(s)); } catch (e) { }
       try { const pr = localStorage.getItem('cb_prefs'); if (pr) { const pp = JSON.parse(pr); if (typeof pp.xr !== 'undefined') { const x = document.getElementById('show-xr'); if (x) x.checked = pp.xr; } if (typeof pp.sr !== 'undefined') { const sr = document.getElementById('show-rates'); if (sr) sr.checked = pp.sr; const grp = document.getElementById('rate-inputs-group'); if (grp) grp.style.display = pp.sr ? 'flex' : 'none'; } } } catch (e) { }
       try { const tc = localStorage.getItem('cb_tc'); if (tc) tcList = JSON.parse(tc); } catch (e) { }
       try { loadPayProfiles(); loadSigProfiles(); loadFIN(); } catch (e) { }
+      // One-off migration: BOQs saved before price anchoring hold only pUSD.
+      // Pin them to the currency they were entered in (b.ic) at today's rate,
+      // then write it back so the pin is permanent instead of drifting on the
+      // next rate change.
+      try {
+        let migrated = false;
+        (ST.boqs || []).forEach(b => (b.sections || []).forEach(sec => (sec.items || []).forEach(it => {
+          if (it && (it.pAmt === undefined || it.pAmt === null)) { syncItem(it, b.ic); migrated = true; }
+        })));
+        if (migrated) persist();
+      } catch (e) { }
     }
 
     // Re-render everything that reads from the state we just replaced.
@@ -3571,7 +3669,9 @@
     };
 
     function savePrefs() { localStorage.setItem('cb_prefs', JSON.stringify({ xr: showXR(), sr: document.getElementById('show-rates')?.checked !== false })); }
-    function refreshAll() { calcBOQ(); renderInvList(); renderRecList(); if (activeInvId) openInv(activeInvId); }
+    // syncPrices() first: rates may have moved, so the USD mirrors every total
+    // below reads from have to be re-derived before anything is redrawn.
+    function refreshAll() { syncPrices(); calcBOQ(); renderInvList(); renderRecList(); if (activeInvId) openInv(activeInvId); }
     function setupDrop(dzId, fiId, prevId, phId) {
       const dz = document.getElementById(dzId); if (!dz) return;
       dz.addEventListener('dragover', e => e.preventDefault());
@@ -3735,16 +3835,68 @@
     // ═══════════════════════════════════════════════
     // BOQ
     // ═══════════════════════════════════════════════
-    function newItem() { return { id: uid(), desc: '', unit: 'm²', qty: 0, pUSD: 0 }; }
+    // ── PRICE ANCHORING ──────────────────────────────────────────────
+    // A unit price is FIXED in the currency it was typed in: pAmt is the
+    // number the user entered and pCur is the currency it is pinned to.
+    // pUSD is a derived mirror — every downstream total, invoice and export
+    // still reads pUSD, but it is recomputed from pAmt whenever a rate moves.
+    // So a LAK-priced BOQ keeps its LAK figures forever and only the
+    // converted (comparison) columns follow the exchange rate.
+    function itemCur(it, fallback) { return CURS.includes(it?.pCur) ? it.pCur : (fallback || 'USD'); }
+    // Pins a legacy item (pUSD only) to a currency, then keeps pUSD in sync.
+    function syncItem(it, fallback) {
+      if (!it) return it;
+      it.pCur = itemCur(it, fallback);
+      if (it.pAmt === undefined || it.pAmt === null || it.pAmt === '') it.pAmt = cv(it.pUSD || 0, it.pCur);
+      it.pAmt = Number(it.pAmt) || 0;
+      it.pUSD = tu(it.pAmt, it.pCur);
+      return it;
+    }
+    // Re-derives every USD mirror — the editor plus every saved BOQ.
+    function syncPrices() {
+      boqSecs.forEach(sec => sec.items.forEach(it => syncItem(it, boqIC())));
+      (ST.boqs || []).forEach(b => (b.sections || []).forEach(sec => (sec.items || []).forEach(it => syncItem(it, b.ic))));
+    }
+    function newItem() { const c = boqIC(); return { id: uid(), desc: '', unit: 'm²', qty: 0, pCur: c, pAmt: 0, pUSD: 0 }; }
     function boqIC() { return document.getElementById('boq-ic')?.value || 'USD'; }
+    // "Fix Price To" — re-pins every item to `c`, converting at today's rate so
+    // the contract value is preserved; from then on `c` is the number that
+    // never moves.
+    function fixPriceTo(c) {
+      if (!CURS.includes(c)) return;
+      const el = document.getElementById('boq-ic'); if (el) el.value = c;
+      boqSecs.forEach(sec => sec.items.forEach(it => {
+        syncItem(it, c);                 // make sure pUSD reflects the old pin
+        if (it.pCur !== c) { it.pCur = c; it.pAmt = round2(cv(it.pUSD, c), c); it.pUSD = tu(it.pAmt, c); }
+      }));
+      renderBOQ();
+    }
+    // Rounds to the currency's own precision so LAK never carries cents.
+    function round2(n, c) { const d = DC[c] === undefined ? 2 : DC[c]; return Number((Number(n) || 0).toFixed(d)); }
+    function paintFixBtns() {
+      const c = boqIC();
+      CURS.forEach(x => { const b = document.getElementById('fx-' + x); if (b) b.classList.toggle('active', x === c); });
+      const note = document.getElementById('fx-note');
+      if (note) note.innerHTML = `Unit prices are stored in <b style="color:var(--ac)">${FLAG[c]} ${CN[c]}</b> and stay exactly as typed. Changing an exchange rate only updates the converted columns for comparison.`;
+    }
     function addSec() { boqSecs.push({ id: uid(), name: `Section ${boqSecs.length + 1}`, items: [newItem()] }); renderBOQ(); }
     function addItem(sid) { const s = boqSecs.find(x => x.id === sid); if (s) { s.items.push(newItem()); renderBOQ(); } }
     function delItem(sid, iid) { const s = boqSecs.find(x => x.id === sid); if (s) { s.items = s.items.filter(i => i.id !== iid); renderBOQ(); } }
     function delSec(sid) { boqSecs = boqSecs.filter(s => s.id !== sid); renderBOQ(); }
     function gI(sid, iid) { return boqSecs.find(s => s.id === sid)?.items.find(i => i.id === iid) || {}; }
-    function setP(sid, iid, v) { const i = gI(sid, iid); if (i.id) { i.pUSD = tu(v, boqIC()); calcBOQ(); } }
+    // Stores the price as typed, in the item's own pinned currency.
+    function setP(sid, iid, v) {
+      const i = gI(sid, iid);
+      if (!i.id) return;
+      i.pCur = itemCur(i, boqIC());
+      i.pAmt = Number(v) || 0;
+      i.pUSD = tu(i.pAmt, i.pCur);
+      calcBOQ();
+    }
     function renderBOQ() {
-      const ic = boqIC(), con = document.getElementById('boq-secs'); if (!con) return; con.innerHTML = '';
+      const ic = boqIC(); paintFixBtns();
+      const con = document.getElementById('boq-secs'); if (!con) return; con.innerHTML = '';
+      boqSecs.forEach(sec => sec.items.forEach(it => syncItem(it, ic)));
       boqSecs.forEach((sec, si) => {
         const div = document.createElement('div'); div.style.marginBottom = '10px';
         div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
@@ -3754,7 +3906,8 @@
       </div>
       <div class="tw"><table><thead><tr>
         <th>#</th><th style="min-width:185px">Description</th><th>Unit</th><th>Qty</th>
-        <th>Unit Price (${ic})</th><th class="num">Amount (${ic})</th><th class="num">Converted</th><th></th>
+        <th>Unit Price (${ic}) <span title="Fixed price — not affected by exchange rates">🔒</span></th>
+        <th class="num">Amount (${ic})</th><th class="num">Converted</th><th></th>
       </tr></thead><tbody id="sb-${sec.id}"></tbody></table></div>
       <div style="display:flex;justify-content:flex-end;gap:12px;padding:5px 9px;background:var(--sf2);border:1px solid var(--bd);border-top:none;border-radius:0 0 7px 7px;font-size:11px">
         <span style="color:var(--tx3)">Sec Total (${ic}):</span>
@@ -3763,7 +3916,7 @@
         con.appendChild(div);
         const tb = document.getElementById('sb-' + sec.id);
         sec.items.forEach((it, ii) => {
-          const icP = cv(it.pUSD, ic);
+          const pc = itemCur(it, ic);          // the currency this price is pinned to
           const tr = document.createElement('tr');
           tr.innerHTML = `<td><span class="tag">${si + 1}.${ii + 1}</span></td>
         <td><input value="${esc(it.desc)}" placeholder="Item description" style="width:100%" oninput="gI('${sec.id}','${it.id}').desc=this.value"/></td>
@@ -3771,7 +3924,7 @@
           ${['m²', 'm³', 'm', 'ls', 'nos', 'kg', 'ton', 'set', 'day', 'm.run'].map(u => `<option ${u === it.unit ? 'selected' : ''}>${u}</option>`).join('')}
         </select></td>
         <td class="num"><input type="number" value="${it.qty}" min="0" step="any" style="width:60px" oninput="gI('${sec.id}','${it.id}').qty=+this.value;calcBOQ()"/></td>
-        <td class="num"><input type="number" value="${fn2(icP)}" min="0" step="any" style="width:96px" oninput="setP('${sec.id}','${it.id}',+this.value)"/></td>
+        <td class="num" style="white-space:nowrap"><span class="pcur" title="Price fixed in ${CN[pc]}">${SYM[pc]}</span><input type="number" value="${numIn(it.pAmt, DC[pc])}" min="0" step="any" style="width:96px" oninput="setP('${sec.id}','${it.id}',+this.value)"/></td>
         <td class="num" id="ba-ic-${it.id}">${fn2(cv(it.pUSD * (it.qty || 0), ic))}</td>
         <td class="num" id="ba-mc-${it.id}">${mcC(it.pUSD * (it.qty || 0))}</td>
         <td><button class="btn btn-d" onclick="delItem('${sec.id}','${it.id}')">✕</button></td>`;
@@ -3881,7 +4034,7 @@
       const noteEl = document.getElementById('boq-note'); if (noteEl) noteEl.value = b.note || '';
       const noteShowEl = document.getElementById('note-show'); if (noteShowEl) noteShowEl.checked = b.noteShow !== false;
       document.getElementById('boq-vat').value = b.vatRate ?? 10;
-      if (b.ic) document.getElementById('boq-ic').value = b.ic;
+      document.getElementById('boq-ic').value = CURS.includes(b.ic) ? b.ic : 'USD';
       if (b.discount) { document.getElementById('disc-enabled').checked = b.discount.enabled; document.getElementById('disc-type').value = b.discount.type || 'pct'; document.getElementById('disc-val').value = b.discount.val || 0; }
       if (b.tc && b.tc.length) { tcList = b.tc; renderTC(); }
       boqSecs = JSON.parse(JSON.stringify(b.sections));
@@ -3901,7 +4054,7 @@
         rows.push([t('Bill of Quotation').toUpperCase(), '', '', '', t('No.'), g('boq-num')]);
         rows.push([t('Date'), g('boq-date'), '', '', t('Client'), g('boq-client')]);
         rows.push([t('Project'), g('boq-project'), '', '', t('Currency'), CN[CURR]]);
-        if (showXR()) rows.push([t('Exchange Rates'), '1 USD = ' + RATES.THB + ' THB', '1 USD = ' + RATES.LAK.toLocaleString() + ' LAK']);
+        if (showXR()) rows.push([t('Exchange Rates'), ...xrPairs()]);
         rows.push([t('Scope of Work'), g('boq-scope')]); rows.push([]);
         rows.push([t('No.'), t('Description'), t('Unit'), t('Qty'), t('Unit Price') + ' (' + CN[CURR] + ')', t('Amount') + ' (' + CN[CURR] + ')']);
         let tot = 0;
@@ -3981,6 +4134,7 @@
         ['Date', g('boq-date')], ['Prepared By', g('boq-prepby')],
         ['Client', g('boq-client')], ['Project', g('boq-project')],
         ['Location', g('boq-location')], ['VAT', vr > 0 ? vr + '%' : 'Excluded'],
+        ['Priced In', CN[ic]],
       ], color);
       const scopeBlock = g('boq-scope') ? `<div style="margin:10px 20px;background:${color}08;border-left:3px solid ${color};padding:7px 12px;border-radius:0 5px 5px 0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color};margin-bottom:3px;letter-spacing:1px">${t('Scope of Work')}</div><div style="font-size:11px;color:#444;line-height:1.6">${esc(g('boq-scope')).replace(/\n/g, '<br>')}</div></div>` : '';
       return `<div class="a4doc">
@@ -4298,6 +4452,8 @@
       if (on && ivPct(inv) <= 0) inv.vatRate = 10;
       const rateEl = document.getElementById('ivat-rate-' + invId);
       if (rateEl) { rateEl.disabled = !on; rateEl.value = ivPct(inv); }
+      const enEl = document.getElementById('ivat-en-' + invId);
+      if (enEl) enEl.checked = !!on;
       persist(); refreshInvVat(invId); renderInvList();
     }
     // User edited the VAT percentage.
@@ -4450,7 +4606,7 @@
           ${po.bank ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Bank:</div><div>${esc(po.bank)}</div>` : ''}
           ${po.acname ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Account Name:</div><div style="font-weight:600">${esc(po.acname)}</div>` : ''}
           ${po.acnum ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Account No.:</div><div style="font-family:var(--M);font-weight:800;font-size:14px;color:var(--ac)">${esc(po.acnum)}</div>` : ''}
-          ${po.curr ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Currency:</div><div>${po.curr === 'ALL' ? 'USD / THB / LAK' : po.curr}</div>` : ''}
+          ${po.curr ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Currency:</div><div>${po.curr === 'ALL' ? CURS.join(' / ') : po.curr}</div>` : ''}
           ${po.notes ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Notes:</div><div style="color:var(--tx2)">${esc(po.notes)}</div>` : ''}
         </div>
       </div>
@@ -4564,7 +4720,7 @@
     }
     // Small secondary line showing the same amount in the other two currencies.
     function altCur(u) {
-      return ['USD', 'THB', 'LAK'].filter(c => c !== CURR)
+      return CURS.filter(c => c !== CURR)
         .map(c => `${FLAG[c]}${fa(cv(u, c), c)}`).join(' ');
     }
 
@@ -4650,7 +4806,7 @@
         rows.push([t('BOQ Ref.'), inv.boqNum, '', t('Client'), inv.client || '']);
         rows.push([t('Project'), inv.project || '', '', t('Currency'), CN[CURR]]);
         if (hasDisc) rows.push([t('Discount'), disc.type === 'pct' ? `${disc.val}%` : eA(disc.amtUSD)]);
-        if (showXR()) rows.push([t('Exchange Rates'), '1 USD = ' + RATES.THB + ' THB', '1 USD = ' + RATES.LAK.toLocaleString() + ' LAK']);
+        if (showXR()) rows.push([t('Exchange Rates'), ...xrPairs()]);
         rows.push([]);
         const boqColHeader = t('Contract Value') + (hasDisc ? ` (${t('Discount')}: ${disc.type === 'pct' ? disc.val + '%' : eA(disc.amtUSD)})` : '');
         rows.push([t('No.'), t('Description'), t('Unit'), boqColHeader,
@@ -4713,7 +4869,7 @@
           ${po.bank ? `<div style="color:#888;font-weight:600">${t('Bank')}:</div><div>${esc(po.bank)}</div>` : ''}
           ${po.acname ? `<div style="color:#888;font-weight:600">${t('Account Name')}:</div><div style="font-weight:600">${esc(po.acname)}</div>` : ''}
           ${po.acnum ? `<div style="color:#888;font-weight:600">${t('Account No.')}:</div><div style="font-weight:700;font-size:13px;font-family:monospace;color:${color}">${esc(po.acnum)}</div>` : ''}
-          ${po.curr ? `<div style="color:#888;font-weight:600">${t('Currency')}:</div><div>${po.curr === 'ALL' ? 'USD / THB / LAK' : po.curr}</div>` : ''}
+          ${po.curr ? `<div style="color:#888;font-weight:600">${t('Currency')}:</div><div>${po.curr === 'ALL' ? CURS.join(' / ') : po.curr}</div>` : ''}
           ${po.notes ? `<div style="color:#888;font-weight:600">${t('Notes')}:</div><div>${esc(po.notes)}</div>` : ''}
         </div>
       </div>
@@ -4802,7 +4958,7 @@
         ${po.bank ? `<span style="color:var(--tx3)">Bank:</span><span>${esc(po.bank)}</span>` : ''}
         ${po.acname ? `<span style="color:var(--tx3)">Account Name:</span><span style="font-weight:600">${esc(po.acname)}</span>` : ''}
         ${po.acnum ? `<span style="color:var(--tx3)">Account No.:</span><span style="font-weight:700;font-family:var(--M);color:var(--ac)">${esc(po.acnum)}</span>` : ''}
-        ${po.curr ? `<span style="color:var(--tx3)">Currency:</span><span>${po.curr === 'ALL' ? 'USD / THB / LAK' : po.curr}</span>` : ''}
+        ${po.curr ? `<span style="color:var(--tx3)">Currency:</span><span>${po.curr === 'ALL' ? CURS.join(' / ') : po.curr}</span>` : ''}
       </div>`;
       } else {
         preview.style.display = 'none';
@@ -4852,7 +5008,7 @@
         </div>
       </div>
       <div class="rs">
-        <div class="rst"><div class="l">Amount Received</div><div class="v" style="color:var(--gr)">${fa(cv(tot))}</div><div class="sv">${fa(cv(tot), 'USD')} / ${fa(cv(tot, 'THB'), 'THB')} / ${fa(cv(tot, 'LAK'), 'LAK')}</div></div>
+        <div class="rst"><div class="l">Amount Received</div><div class="v" style="color:var(--gr)">${fa(cv(tot))}</div><div class="sv">${CURS.map(c => fa(cv(tot, c), c)).join(' / ')}</div></div>
         <div class="rst"><div class="l">Payment Method</div><div class="v" style="font-size:12px">${rec.meth}</div>${rec.bank ? `<div class="sv">${esc(rec.bank)}</div>` : ''}</div>
         <div class="rst"><div class="l">Received By</div><div class="v" style="font-size:12px">${rec.by || '—'}</div></div>
       </div>
@@ -4886,7 +5042,7 @@
         rows.push([t('Invoice'), inv?.num || '', t('Period'), inv?.period || '']);
         rows.push([t('Client'), client, t('Project'), project]);
         rows.push([t('Currency'), CN[CURR]]);
-        if (showXR()) rows.push([t('Exchange Rates'), '1 USD = ' + RATES.THB + ' THB', '1 USD = ' + RATES.LAK.toLocaleString() + ' LAK']);
+        if (showXR()) rows.push([t('Exchange Rates'), ...xrPairs()]);
         rows.push([]); rows.push([t('TOTAL AMOUNT RECEIVED'), eN(tot)]); rows.push([]);
         rows.push([t('Payment Method'), rec.meth]); rows.push([t('Bank / Account Reference'), rec.bank || '']);
         rows.push([t('Received By'), rec.by || '']); rows.push([t('Remarks'), rec.rem || '']);
@@ -4934,7 +5090,7 @@
           ${rPo.bank ? `<div style="color:#888;font-weight:600">${t('Bank')}:</div><div>${esc(rPo.bank)}</div>` : ''}
           ${rPo.acname ? `<div style="color:#888;font-weight:600">${t('Account Name')}:</div><div style="font-weight:700">${esc(rPo.acname)}</div>` : ''}
           ${rPo.acnum ? `<div style="color:#888;font-weight:600">${t('Account No.')}:</div><div style="font-weight:800;font-size:13px;font-family:monospace;color:${color}">${esc(rPo.acnum)}</div>` : ''}
-          ${rPo.curr ? `<div style="color:#888;font-weight:600">${t('Currency')}:</div><div>${rPo.curr === 'ALL' ? 'USD / THB / LAK' : rPo.curr}</div>` : ''}
+          ${rPo.curr ? `<div style="color:#888;font-weight:600">${t('Currency')}:</div><div>${rPo.curr === 'ALL' ? CURS.join(' / ') : rPo.curr}</div>` : ''}
         </div>
       </div>
       ${rPo.qr ? `<div style="padding:9px 13px;border-left:1px solid #e8ecf0;text-align:center"><div style="font-size:9px;color:#888;margin-bottom:3px">${t('QR PAYMENT')}</div><img src="${rPo.qr}" style="width:80px;height:80px;object-fit:contain"/></div>` : ''}
@@ -4957,7 +5113,7 @@
           <div style="font-size:34px;font-weight:900;color:#fff;letter-spacing:-1px">${eA(tot)}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:3px">${CN[CURR]}</div>
         </div>
-        ${showXR() ? `<div style="background:#f8f9ff;padding:7px 16px;text-align:center;font-size:10px;color:#888;border-top:1px solid ${color}30">1 USD = ${RATES.THB} THB &nbsp;|&nbsp; 1 USD = ${RATES.LAK.toLocaleString()} LAK</div>` : ''}
+        ${showXR() ? `<div style="background:#f8f9ff;padding:7px 16px;text-align:center;font-size:10px;color:#888;border-top:1px solid ${color}30">${xrLine(' &nbsp;|&nbsp; ')}</div>` : ''}
       </div>
       <table style="width:100%;font-size:11px;border-collapse:collapse;border:1px solid #e8ecf0">
         <tr style="background:${color}10"><td style="padding:7px 13px;color:#666;font-weight:700;width:140px;border-bottom:1px solid #eee">${t('Receipt Number')}</td><td style="padding:7px 13px;font-weight:600;border-bottom:1px solid #eee">${rec.num}</td></tr>
@@ -5003,7 +5159,7 @@
         <div style="font-size:26px;font-weight:900;color:${color};letter-spacing:-1px;line-height:1">${t(docType)}</div>
         <div style="font-size:13px;font-weight:700;color:#555;margin-top:2px">${docNum}</div>
         <div style="margin-top:6px;font-size:11px;color:#888">${t('Currency')}: <b style="color:${color}">${FLAG[CURR]} ${CN[CURR]}</b></div>
-        ${showXR() ? `<div style="margin-top:3px;font-size:9px;color:#aaa">1 USD = ${RATES.THB} THB | 1 USD = ${RATES.LAK.toLocaleString()} LAK</div>` : ''}
+        ${showXR() ? `<div style="margin-top:3px;font-size:9px;color:#aaa">${xrLine()}</div>` : ''}
       </div>
     </div>
     <div style="background:${color}0d;border-top:1px solid ${color}22;padding:6px 20px">
@@ -5015,7 +5171,7 @@
       color = color || co.color || '#1a3bcc';
       return `<div style="border-top:2px solid ${color}18;padding:7px 20px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#bbb;margin-top:14px">
     <div>${co.name ? esc(co.name) : ''}${co.web ? (co.name ? ' · ' : '') + esc(co.web) : ''}</div>
-    <div>${showXR() ? `1 USD = ${RATES.THB} THB | 1 USD = ${RATES.LAK.toLocaleString()} LAK` : ''}</div>
+    <div>${showXR() ? xrLine() : ''}</div>
     <div>${t('Printed')}: ${new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
   </div>`;
     }
@@ -6717,7 +6873,7 @@
             <input id="ipay-type-${invId}" value="${esc(po.type || pay.type || '')}" placeholder="TRANSFER / CASH / CHEQUE"/></div>
           <div class="fm"><label>Currency</label>
             <select id="ipay-curr-${invId}">
-              ${['USD', 'THB', 'LAK', 'ALL'].map(c => `<option value="${c}" ${(po.curr || pay.curr || 'USD') === c ? 'selected' : ''}>${c === 'ALL' ? 'All Currencies' : c}</option>`).join('')}
+              ${[...CURS, 'ALL'].map(c => `<option value="${c}" ${(po.curr || pay.curr || 'USD') === c ? 'selected' : ''}>${c === 'ALL' ? 'All Currencies' : c}</option>`).join('')}
             </select>
           </div>
           <div class="fm"><label>Bank Name</label>
@@ -6948,7 +7104,7 @@
             ${po.bank ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Bank:</div><div>${esc(po.bank)}</div>` : ''}
             ${po.acname ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Account Name:</div><div style="font-weight:600">${esc(po.acname)}</div>` : ''}
             ${po.acnum ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Account No.:</div><div style="font-family:var(--M);font-weight:800;font-size:14px;color:var(--ac)">${esc(po.acnum)}</div>` : ''}
-            ${po.curr ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Currency:</div><div>${po.curr === 'ALL' ? 'USD / THB / LAK' : po.curr}</div>` : ''}
+            ${po.curr ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Currency:</div><div>${po.curr === 'ALL' ? CURS.join(' / ') : po.curr}</div>` : ''}
             ${po.notes ? `<div style="color:var(--tx3);font-weight:600;white-space:nowrap">Notes:</div><div style="color:var(--tx2)">${esc(po.notes)}</div>` : ''}
           </div>
         </div>
