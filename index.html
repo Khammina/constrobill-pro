@@ -231,6 +231,19 @@ tbody td input:focus,tbody td select:focus{background:var(--sf3);border:1px soli
 .pct-in>span,.amt-in>span{font-size:11px;color:var(--tx3);font-weight:700;flex-shrink:0;}
 .amt-alt{font-size:10px;color:var(--tx3);font-family:var(--M);text-align:right;margin-top:2px;}
 
+/* Invoice VAT row — tick to include/exclude, rate is editable */
+.vat-tl{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.vat-tl .chkrow{padding:0;}
+.vat-in{display:inline-flex;align-items:center;gap:2px;background:var(--sf2);border:1px solid var(--bd);
+  border-radius:6px;padding:0 5px;transition:border-color .15s,box-shadow .15s,opacity .15s;}
+.vat-in:focus-within{border-color:var(--ac);box-shadow:0 0 0 2px rgba(79,124,255,.18);}
+.vat-in>input{width:46px;text-align:right;background:transparent;border:none;outline:none;
+  padding:3px 0;font-family:var(--M);font-size:12px;font-weight:600;color:var(--tx);}
+.vat-in>input::-webkit-outer-spin-button,.vat-in>input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.vat-in>span{font-size:11px;color:var(--tx3);font-weight:700;flex-shrink:0;}
+.vat-in:has(input:disabled){opacity:.45;}
+.vat-in>input:disabled{cursor:not-allowed;}
+
 .theme-swatch{border-radius:9px;padding:10px 8px;cursor:pointer;border:2px solid transparent;transition:all .2s;text-align:center;}
 .theme-swatch:hover{border-color:var(--ac);transform:translateY(-2px);}
 .theme-swatch.active-theme{border-color:var(--gr)!important;box-shadow:0 0 0 3px rgba(30,217,122,.2);}
@@ -293,6 +306,7 @@ lo:{
 'Unit Price':'ລາຄາຫົວໜ່ວຍ','Amount':'ຈຳນວນເງິນ','Total':'ລວມ','Subtotal':'ລວມຍ່ອຍ',
 'Discount':'ສ່ວນຫຼຸດ','VAT':'ອາກອນມູນຄ່າເພີ່ມ','VAT / Tax':'ອາກອນ','GRAND TOTAL':'ລວມທັງໝົດ',
 'INVOICE TOTAL':'ລວມໃບແຈ້ງໜີ້','TOTAL RECEIVED':'ລວມເງິນທີ່ຮັບ','Excluded':'ບໍ່ລວມ',
+'Tick to include VAT / Tax in this invoice':'ຕິກເພື່ອລວມອາກອນໃນໃບແຈ້ງໜີ້ນີ້','Editable VAT / Tax rate':'ອັດຕາອາກອນ (ແກ້ໄຂໄດ້)',
 'Date':'ວັນທີ','Client':'ລູກຄ້າ','Project':'ໂຄງການ','Location':'ສະຖານທີ່',
 'Prepared By':'ຜູ້ຈັດທຳ','Currency':'ສະກຸນເງິນ','Period':'ໄລຍະເວລາ','BOQ Ref.':'ອ້າງອີງ BOQ',
 'Invoice Ref.':'ອ້າງອີງໃບແຈ້ງໜີ້','Contract Value':'ມູນຄ່າສັນຍາ','Previous':'ຄັ້ງກ່ອນ',
@@ -378,6 +392,7 @@ th:{
 'Unit Price':'ราคาต่อหน่วย','Amount':'จำนวนเงิน','Total':'รวม','Subtotal':'รวมย่อย',
 'Discount':'ส่วนลด','VAT':'ภาษีมูลค่าเพิ่ม','VAT / Tax':'ภาษี','GRAND TOTAL':'รวมทั้งสิ้น',
 'INVOICE TOTAL':'รวมใบแจ้งหนี้','TOTAL RECEIVED':'รวมเงินที่รับ','Excluded':'ไม่รวม',
+'Tick to include VAT / Tax in this invoice':'ติ๊กเพื่อรวมภาษีในใบแจ้งหนี้นี้','Editable VAT / Tax rate':'อัตราภาษี (แก้ไขได้)',
 'Date':'วันที่','Client':'ลูกค้า','Project':'โครงการ','Location':'สถานที่',
 'Prepared By':'ผู้จัดทำ','Currency':'สกุลเงิน','Period':'งวดงาน','BOQ Ref.':'อ้างอิง BOQ',
 'Invoice Ref.':'อ้างอิงใบแจ้งหนี้','Contract Value':'มูลค่าสัญญา','Previous':'ครั้งก่อน',
@@ -463,6 +478,7 @@ zh:{
 'Unit Price':'单价','Amount':'金额','Total':'合计','Subtotal':'小计',
 'Discount':'折扣','VAT':'增值税','VAT / Tax':'税金','GRAND TOTAL':'总计',
 'INVOICE TOTAL':'本期请款总额','TOTAL RECEIVED':'实收总额','Excluded':'不含',
+'Tick to include VAT / Tax in this invoice':'勾选以在本发票中计入税金','Editable VAT / Tax rate':'税率（可编辑）',
 'Date':'日期','Client':'客户','Project':'项目','Location':'地点',
 'Prepared By':'制表人','Currency':'货币','Period':'工期','BOQ Ref.':'清单编号',
 'Invoice Ref.':'请款单编号','Contract Value':'合同金额','Previous':'上期',
@@ -2400,7 +2416,7 @@ function openBOQHistory(){
   sorted.forEach(b=>{
     const d=document.createElement('div');d.className='boq-hist-item'+(b.id===activeBOQId?' active-boq':'');
     let sub=0;b.sections.forEach(sec=>sec.items.forEach(i=>{sub+=(i.pUSD||0)*(i.qty||0);}));
-    const disc=b.discount?.amtUSD||0;const vat=(sub-disc)*(b.vatRate||10)/100;const grand=sub-disc+vat;
+    const disc=b.discount?.amtUSD||0;const vat=(sub-disc)*(b.vatRate??10)/100;const grand=sub-disc+vat;
     d.innerHTML=`<div style="flex:1">
         <div style="font-weight:600;font-size:13px">${b.num} <span style="font-size:11px;font-weight:400;color:var(--tx3)">– ${b.client}</span></div>
         <div style="font-size:11px;color:var(--tx3)">${b.project} · ${b.date}</div>
@@ -2425,7 +2441,7 @@ function loadBOQ(id){
   document.getElementById('boq-scope').value=b.scope||'';
   const noteEl=document.getElementById('boq-note');if(noteEl)noteEl.value=b.note||'';
   const noteShowEl=document.getElementById('note-show');if(noteShowEl)noteShowEl.checked=b.noteShow!==false;
-  document.getElementById('boq-vat').value=b.vatRate||10;
+  document.getElementById('boq-vat').value=b.vatRate??10;
   if(b.ic)document.getElementById('boq-ic').value=b.ic;
   if(b.discount){document.getElementById('disc-enabled').checked=b.discount.enabled;document.getElementById('disc-type').value=b.discount.type||'pct';document.getElementById('disc-val').value=b.discount.val||0;}
   if(b.tc&&b.tc.length){tcList=b.tc;renderTC();}
@@ -2603,7 +2619,7 @@ function createInv(){
   });});
   const payObj=getInvPayObj();
   ST.invoices.push({id:uid(),num,date,boqId,boqNum:boq.num,period,items,
-    vatRate:boq.vatRate,discount:boq.discount||null,
+    vatRate:boq.vatRate,vatEnabled:(parseFloat(boq.vatRate)||0)>0,discount:boq.discount||null,
     client:boq.client,project:boq.project,location:boq.location,payObj});
   persist();closeModal('inv-modal');renderInvList();openInv(ST.invoices[ST.invoices.length-1].id);
 }
@@ -2666,7 +2682,7 @@ function renderInvList(){
     const invContainer=grp.querySelector('.proj-invoices');
     proj.invoices.slice().reverse().forEach(inv=>{
       const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-      const vat=sub*(inv.vatRate||10)/100;
+      const vat=sub*ivRate(inv)/100;
       const tot=sub+vat;
       const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
       const isActive=inv.id===activeInvId;
@@ -2757,7 +2773,7 @@ function renderInvHistoryModal(){
 
     g.invoices.forEach(inv=>{
       const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-      const vat=sub*(inv.vatRate||10)/100;
+      const vat=sub*ivRate(inv)/100;
       const tot=sub+vat;
       const pct=inv.items.length?(inv.items.reduce((a,i)=>a+(i.cumPct||0),0)/inv.items.length):0;
       const row=document.createElement('div');
@@ -2808,10 +2824,62 @@ function deleteInvFromHistory(invId){
   }
   persist();renderInvList();renderInvHistoryModal();
 }
+// ── Invoice VAT helpers ───────────────────────────
+// Each invoice carries its own rate (inherited from the BOQ) plus an
+// include/exclude switch. ivRate() is the single source of truth: it
+// returns 0 whenever VAT is switched off, so every total in the app
+// (list, dashboard, exports) follows the tick box automatically.
+function ivPct(inv){
+  if(!inv)return 0;
+  const r=(inv.vatRate===undefined||inv.vatRate===null||inv.vatRate==='')?10:(parseFloat(inv.vatRate)||0);
+  return Math.max(0,Math.min(r,100));
+}
+function ivOn(inv){
+  if(!inv)return false;
+  // Legacy invoices have no flag — a rate above 0 means VAT was included.
+  return inv.vatEnabled===undefined?ivPct(inv)>0:!!inv.vatEnabled;
+}
+function ivRate(inv){return ivOn(inv)?ivPct(inv):0;}
+
+// Tick / untick "include VAT" on the open invoice.
+function toggleInvVat(invId,on){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  inv.vatEnabled=!!on;
+  // Turning it back on with a 0% rate would be a no-op — restore a usable rate.
+  if(on&&ivPct(inv)<=0)inv.vatRate=10;
+  const rateEl=document.getElementById('ivat-rate-'+invId);
+  if(rateEl){rateEl.disabled=!on;rateEl.value=ivPct(inv);}
+  persist();refreshInvVat(invId);renderInvList();
+}
+// User edited the VAT percentage.
+function setInvVatRate(invId,val){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  inv.vatRate=Math.max(0,Math.min(parseFloat(val)||0,100));
+  if(inv.vatEnabled===undefined)inv.vatEnabled=true;
+  persist();refreshInvVat(invId);renderInvList();
+}
+// Repaint every VAT-dependent figure on the invoice detail pane.
+function refreshInvVat(invId){
+  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
+  const on=ivOn(inv),vr=ivRate(inv);
+  const tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
+  const vat=tU*vr/100;
+  setH('ivat-badge-'+invId,on
+    ?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`
+    :`<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">${t('Excluded')}</span>`);
+  setH('isub-'+invId,mcT(tU));
+  setH('ivat-'+invId,on?mcT(vat):`<span style="font-size:11px;color:var(--tx3);font-family:var(--M)">—</span>`);
+  setH('itot-'+invId,mcT(tU+vat,true));
+  const tile=document.getElementById('ithis-'+invId);
+  if(tile)tile.innerHTML=`<div class="l">This Invoice (${on?'incl.':'excl.'} VAT)</div><div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div><div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div>`;
+  markDirty();
+}
+
 function openInv(invId){
   activeInvId=invId;const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   renderInvList();
-  const vr=inv.vatRate||10;
+  const vr=ivRate(inv);
+  const vatOn=ivOn(inv);
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
@@ -2862,7 +2930,7 @@ function openInv(invId){
         </div>
       </div>
       <div class="rs">
-        <div class="rst"><div class="l">This Invoice (incl. VAT)</div><div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div><div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div></div>
+        <div class="rst" id="ithis-${invId}"><div class="l">This Invoice (${vatOn?'incl.':'excl.'} VAT)</div><div class="v" style="color:var(--gr)">${fa(cv(tU+vat))}</div><div class="sv">${fa(cv(tU+vat),'USD')} / ${fa(cv(tU+vat,'THB'),'THB')}</div></div>
         <div class="rst"><div class="l">Cumulative (excl. VAT)</div><div class="v" style="color:var(--ac)">${fa(cv(cU))}</div><div class="sv">${fa(cv(cU),'USD')}</div></div>
         <div class="rst">
           <div class="l">Contract Value ${hasDisc?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(30,217,122,.15);color:var(--gr);font-weight:700">Disc. applied</span>`:''}</div>
@@ -2885,7 +2953,15 @@ function openInv(invId){
       <div class="totals">
         <div class="tb">
           <div class="tr2"><span class="tl">This Subtotal</span><span class="tv" id="isub-${invId}">${mcT(tU)}</span></div>
-          <div class="tr2"><span class="tl">VAT ${vr>0?`(${vr}%)`:'<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">Excluded</span>'}</span><span class="tv" id="ivat-${invId}">${mcT(vat)}</span></div>
+          <div class="tr2"><span class="tl vat-tl">
+              <label class="chkrow" style="min-width:unset;gap:5px;margin:0" title="${t('Tick to include VAT / Tax in this invoice')}">
+                <input type="checkbox" id="ivat-en-${invId}" ${vatOn?'checked':''} onchange="toggleInvVat('${invId}',this.checked)"/>
+                <span>VAT / Tax</span>
+              </label>
+              <span class="vat-in"><input type="number" id="ivat-rate-${invId}" value="${ivPct(inv)}" min="0" max="100" step="any" ${vatOn?'':'disabled'}
+                oninput="setInvVatRate('${invId}',this.value)" title="${t('Editable VAT / Tax rate')}"/><span>%</span></span>
+              <span id="ivat-badge-${invId}">${vatOn?`<span style="font-size:10px;color:var(--tx3)">(${vr}%)</span>`:`<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,200,66,.15);color:var(--ye);font-weight:700">${t('Excluded')}</span>`}</span>
+            </span><span class="tv" id="ivat-${invId}">${vatOn?mcT(vat):'<span style="font-size:11px;color:var(--tx3);font-family:var(--M)">—</span>'}</span></div>
           <div class="tr2"><span class="tl" style="color:var(--tx3)">Previous Invoiced</span><span class="tv" style="opacity:.5">${mcT(pU)}</span></div>
           <div class="tr2 sep grand"><span class="tl">THIS INVOICE TOTAL</span><span class="tv" id="itot-${invId}">${mcT(tU+vat,true)}</span></div>
         </div>
@@ -3066,11 +3142,7 @@ function paintRow(invId,it,skip){
   setH('ica-'+it.bid,mcC(it.cumAmt));
   setH('irm-'+it.bid,mcC(it.rem));
 
-  const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
-  const tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-  const vat=tU*(inv.vatRate||10)/100;
-  setH('isub-'+invId,mcT(tU));setH('ivat-'+invId,mcT(vat));setH('itot-'+invId,mcT(tU+vat,true));
-  markDirty();
+  refreshInvVat(invId);
 }
 
 // User typed a percentage → derive the amount.
@@ -3116,7 +3188,7 @@ function saveInv(invId){persist();renderInvList();alert('✅ '+t('Progress saved
 function exportInv(invId,type){
   const inv=ST.invoices.find(i=>i.id===invId);if(!inv)return;
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
-  const vr=inv.vatRate||10;
+  const vr=ivRate(inv);
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
@@ -3155,7 +3227,7 @@ function exportInv(invId,type){
 function buildInvHtml(invId){
   const inv=ST.invoices.find(i=>i.id===invId);
   const boq=ST.boqs.find(b=>b.id===inv.boqId);
-  const color=co.colorInv||co.color||'#1a3bcc',vr=inv.vatRate||10;
+  const color=co.colorInv||co.color||'#1a3bcc',vr=ivRate(inv);
   const disc=inv.discount;
   const hasDisc=disc&&disc.enabled&&(disc.amtUSD||0)>0;
   let tU=inv.items.reduce((a,i)=>a+(i.amt||0),0);
@@ -3213,7 +3285,7 @@ function buildInvHtml(invId){
   const header=docH('INVOICE',inv.num,[
     ['Date',inv.date],['Period',inv.period],
     ['BOQ Ref.',inv.boqNum],['Client',inv.client||boq?.client||''],
-    ['Project',inv.project||boq?.project||''],['VAT',vr+'%'],
+    ['Project',inv.project||boq?.project||''],['VAT',vr>0?vr+'%':'Excluded'],
   ],color);
   return `<div class="a4doc">
     ${header}
@@ -3259,7 +3331,7 @@ function buildInvHtml(invId){
 // ═══════════════════════════════════════════════
 function fillRecInvSel(){
   const sel=document.getElementById('rn-inv');sel.innerHTML='<option value="">-- Select Invoice --</option>';
-  ST.invoices.forEach(inv=>{let s=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=s+s*(inv.vatRate||10)/100;
+  ST.invoices.forEach(inv=>{let s=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=s+s*ivRate(inv)/100;
     sel.innerHTML+=`<option value="${inv.id}">${inv.num} – ${inv.period} (${eA(tot)})</option>`;});
   document.getElementById('rn-num').value=`REC-${new Date().getFullYear()}-${String(ST.receipts.length+1).padStart(3,'0')}`;
   document.getElementById('rn-date').value=new Date().toISOString().split('T')[0];
@@ -3306,7 +3378,7 @@ function renderRecList(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*ivRate(inv)/100;
     const card=document.createElement('div');card.className='card';
     card.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;flex-wrap:wrap">
@@ -3351,7 +3423,7 @@ function exportRec(recId,type){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const tot=sub+sub*(inv?.vatRate||10)/100;
+  const tot=sub+sub*ivRate(inv)/100;
   const client=inv?.client||boq?.client||'';const project=inv?.project||boq?.project||'';
   if(type==='excel'){
     const wb=XLSX.utils.book_new();const rows=[];
@@ -3377,7 +3449,7 @@ function buildRecHtml(recId){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const tot=sub+sub*(inv?.vatRate||10)/100;
+  const tot=sub+sub*ivRate(inv)/100;
   const client=inv?.client||boq?.client||'';const project=inv?.project||boq?.project||'';
   const color=co.colorRec||co.color||'#1a3bcc';
   let progHTML='';
@@ -3583,7 +3655,7 @@ function populateReceiptSelector(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*ivRate(inv)/100;
     const label=`${rec.num} — ${inv?.period||''} · ${inv?.client||boq?.client||''} · ${fa(cv(tot))}`;
     sel.innerHTML+=`<option value="${rec.id}">${label}</option>`;
   });
@@ -3598,7 +3670,7 @@ function applyReceiptToFin(){
   const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
   const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
   let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-  const totUSD=sub+sub*(inv?.vatRate||10)/100;
+  const totUSD=sub+sub*ivRate(inv)/100;
 
   // Fill the form fields from receipt
   document.getElementById('fin-date').value=rec.date||'';
@@ -3705,7 +3777,7 @@ function syncReceiptsToFIN(){
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const boq=inv?ST.boqs.find(b=>b.id===inv.boqId):null;
     let sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*ivRate(inv)/100;
     if(tot<=0) return;
 
     const existing = FIN.find(f=>f.auto && f.ref===rec.id);
@@ -3889,7 +3961,7 @@ function renderDash(){
   let contractValue=0;
   dedupBoqs.forEach(b=>{
     let sub=0;b.sections.forEach(s=>s.items.forEach(i=>sub+=(i.pUSD||0)*(i.qty||0)));
-    const disc=b.discount?.amtUSD||0;const vat=(sub-disc)*(b.vatRate||10)/100;
+    const disc=b.discount?.amtUSD||0;const vat=(sub-disc)*(b.vatRate??10)/100;
     contractValue+=sub-disc+vat;
   });
 
@@ -3897,7 +3969,7 @@ function renderDash(){
   let invoicedTotal=0,invoicedThisMonth=0,invoicedLastMonth=0;
   ST.invoices.forEach(inv=>{
     const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);
-    const vat=sub*(inv.vatRate||10)/100;const tot=sub+vat;
+    const vat=sub*ivRate(inv)/100;const tot=sub+vat;
     invoicedTotal+=tot;
     if(inv.date.startsWith(thisMonth))invoicedThisMonth+=tot;
     if(inv.date.startsWith(lastMonthStr))invoicedLastMonth+=tot;
@@ -3908,7 +3980,7 @@ function renderDash(){
   ST.receipts.forEach(rec=>{
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    const tot=sub+sub*(inv?.vatRate||10)/100;
+    const tot=sub+sub*ivRate(inv)/100;
     receivedTotal+=tot;
     if(rec.date.startsWith(thisMonth))receivedThisMonth+=tot;
     if(rec.date.startsWith(lastMonthStr))receivedLastMonth+=tot;
@@ -3942,14 +4014,14 @@ function renderDash(){
   ST.invoices.forEach(inv=>{
     const k=inv.date?.slice(0,7);if(!monthBuckets[k])return;
     if(yearSel!=='all'&&!k.startsWith(yearSel))return;
-    const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);monthBuckets[k].invoiced+=cv(sub+sub*(inv.vatRate||10)/100);
+    const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);monthBuckets[k].invoiced+=cv(sub+sub*ivRate(inv)/100);
   });
   ST.receipts.forEach(rec=>{
     const k=rec.date?.slice(0,7);if(!monthBuckets[k])return;
     if(yearSel!=='all'&&!k.startsWith(yearSel))return;
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
     const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-    monthBuckets[k].received+=cv(sub+sub*(inv?.vatRate||10)/100);
+    monthBuckets[k].received+=cv(sub+sub*ivRate(inv)/100);
   });
   const mKeys=Object.keys(monthBuckets).sort();
   const mLabels=mKeys.map(k=>monthBuckets[k].label);
@@ -3980,15 +4052,15 @@ function renderDash(){
   const projData={};
   dedupBoqs.slice(0,8).forEach(b=>{
     let sub=0;b.sections.forEach(s=>s.items.forEach(i=>sub+=(i.pUSD||0)*(i.qty||0)));
-    const disc=b.discount?.amtUSD||0;const vat=(sub-disc)*(b.vatRate||10)/100;
+    const disc=b.discount?.amtUSD||0;const vat=(sub-disc)*(b.vatRate??10)/100;
     projData[b.num]={label:b.project||b.num,boq:cv(sub-disc+vat),inv:0,rec:0};
   });
   ST.invoices.forEach(inv=>{
-    if(projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].inv+=cv(sub+sub*(inv.vatRate||10)/100);}
+    if(projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].inv+=cv(sub+sub*ivRate(inv)/100);}
   });
   ST.receipts.forEach(rec=>{
     const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
-    if(inv&&projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].rec+=cv(sub+sub*(inv.vatRate||10)/100);}
+    if(inv&&projData[inv.boqNum]){const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);projData[inv.boqNum].rec+=cv(sub+sub*ivRate(inv)/100);}
   });
   const pKeys=Object.keys(projData);
   makeChart('chart-compare',{
@@ -4018,11 +4090,11 @@ function renderDash(){
     [...ST.receipts].slice(-5).reverse().forEach(rec=>{
       const inv=ST.invoices.find(i=>i.id===rec.invoiceId);
       const sub=inv?inv.items.reduce((a,i)=>a+(i.amt||0),0):0;
-      const tot=sub+sub*(inv?.vatRate||10)/100;
+      const tot=sub+sub*ivRate(inv)/100;
       acts.push({icon:'✅',bg:'rgba(30,217,122,.15)',date:rec.date,desc:`Receipt ${rec.num} — ${inv?.period||''}`,sub:`Client: ${inv?.client||'—'}`,amt:tot,color:'var(--gr)'});
     });
     [...ST.invoices].slice(-5).reverse().forEach(inv=>{
-      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=sub+sub*(inv.vatRate||10)/100;
+      const sub=inv.items.reduce((a,i)=>a+(i.amt||0),0);const tot=sub+sub*ivRate(inv)/100;
       acts.push({icon:'🧾',bg:'rgba(245,200,66,.15)',date:inv.date,desc:`Invoice ${inv.num} — ${inv.period}`,sub:`Project: ${inv.project||'—'}`,amt:tot,color:'var(--ye)'});
     });
     acts.sort((a,b)=>b.date.localeCompare(a.date));
