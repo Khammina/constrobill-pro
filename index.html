@@ -5665,6 +5665,11 @@
             <span style="font-size:10px;color:var(--tx3)">Or set individual colors per document</span>
           </div>
         </div>
+        <div style="margin-top:16px">
+          <div class="ct" style="margin-bottom:4px">Document Templates</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:8px">Choose how your BOQ, Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.</div>
+          <div id="tpl-picker" data-no-i18n></div>
+        </div>
       </div>
 
       <!-- CLIENTS TAB -->
@@ -5946,6 +5951,12 @@
         </div>
       </div>
       <div style="flex:1"></div>
+      <!-- Document template (Invoice / Received Bill only) -->
+      <div id="prev-tpl-wrap" style="display:none;align-items:center;gap:5px">
+        <span style="font-size:10px;color:var(--tx3)">Template:</span>
+        <select id="prev-tpl" data-no-i18n style="width:150px;padding:4px 6px;font-size:11px"
+          onchange="setDocTemplate(this.value)"></select>
+      </div>
       <!-- Paper size -->
       <div style="display:flex;align-items:center;gap:5px">
         <span style="font-size:10px;color:var(--tx3)">Paper:</span>
@@ -10871,6 +10882,909 @@
         };
       }
       syncThemeColor();
+    })();
+  </script>
+
+  <!-- ═══════════ DOCUMENT TEMPLATES ═══════════
+       12 extra layouts for the BOQ, Invoice and Received Bill (Preview, Print / PDF
+       and JPEG all use them). "Classic" is the original layout and stays the
+       default. The choice is stored in the company profile (cb_co), which is
+       already synced — no server, URL or data-format changes. -->
+  <script>
+    (function () {
+      // ── Translations for the new labels (never overrides existing ones) ──
+      const TR = {
+        lo: {
+          'Bill to': 'ອອກໃຫ້', 'From': 'ຈາກ', 'Details': 'ລາຍລະອຽດ', 'Amount due': 'ຍອດທີ່ຕ້ອງຊຳລະ', 'Amount paid': 'ຍອດທີ່ຊຳລະແລ້ວ',
+          'due': 'ຄົບກຳນົດ', 'paid on': 'ຊຳລະວັນທີ', 'Payment history': 'ປະຫວັດການຊຳລະ', 'Invoice number': 'ເລກທີໃບແຈ້ງໜີ້',
+          'Date of issue': 'ວັນທີອອກ', 'Date paid': 'ວັນທີຊຳລະ', 'Billed items': 'ລາຍການທີ່ເກັບເງິນ', 'Template': 'ແມ່ແບບ',
+          'Document Templates': 'ແມ່ແບບເອກະສານ', 'Thank you for your business!': 'ຂອບໃຈທີ່ໃຊ້ບໍລິການ!', 'Amount': 'ຈຳນວນເງິນ',
+          'Payment instructions': 'ຂໍ້ມູນການຊຳລະເງິນ', 'Payment account details': 'ຂໍ້ມູນບັນຊີຮັບເງິນ', 'items': 'ລາຍການ',
+          'Pay to': 'ຊຳລະເຂົ້າ', 'Invoice': 'ໃບແຈ້ງໜີ້', 'Received Bill': 'ໃບຮັບເງິນ',
+          'Choose how your Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': 'ເລືອກຮູບແບບໃບແຈ້ງໜີ້ ແລະ ໃບຮັບເງິນ ສຳລັບ ເບິ່ງຕົວຢ່າງ, ພິມ / PDF ແລະ JPEG. ນຳໃຊ້ທັນທີ.'
+        },
+        th: {
+          'Bill to': 'เรียกเก็บจาก', 'From': 'จาก', 'Details': 'รายละเอียด', 'Amount due': 'ยอดที่ต้องชำระ', 'Amount paid': 'ยอดที่ชำระแล้ว',
+          'due': 'ครบกำหนด', 'paid on': 'ชำระเมื่อ', 'Payment history': 'ประวัติการชำระเงิน', 'Invoice number': 'เลขที่ใบแจ้งหนี้',
+          'Date of issue': 'วันที่ออก', 'Date paid': 'วันที่ชำระ', 'Billed items': 'รายการที่เรียกเก็บ', 'Template': 'เทมเพลต',
+          'Document Templates': 'เทมเพลตเอกสาร', 'Thank you for your business!': 'ขอบคุณที่ใช้บริการ!', 'Amount': 'จำนวนเงิน',
+          'Payment instructions': 'ข้อมูลการชำระเงิน', 'Payment account details': 'ข้อมูลบัญชีรับเงิน', 'items': 'รายการ',
+          'Pay to': 'ชำระเข้า', 'Invoice': 'ใบแจ้งหนี้', 'Received Bill': 'ใบเสร็จรับเงิน',
+          'Choose how your Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': 'เลือกรูปแบบใบแจ้งหนี้และใบเสร็จรับเงินสำหรับดูตัวอย่าง พิมพ์ / PDF และ JPEG มีผลทันที'
+        },
+        zh: {
+          'Bill to': '账单寄往', 'From': '开票方', 'Details': '详情', 'Amount due': '应付金额', 'Amount paid': '已付金额',
+          'due': '到期', 'paid on': '付款于', 'Payment history': '付款记录', 'Invoice number': '发票编号',
+          'Date of issue': '开具日期', 'Date paid': '付款日期', 'Billed items': '计费项目', 'Template': '模板',
+          'Document Templates': '文档模板', 'Thank you for your business!': '感谢您的惠顾！', 'Amount': '金额',
+          'Payment instructions': '付款说明', 'Payment account details': '收款账户信息', 'items': '项',
+          'Pay to': '付款至', 'Invoice': '发票', 'Received Bill': '收款单',
+          'Choose how your Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': '选择发票和收款单在预览、打印 / PDF 和 JPEG 中的样式，立即生效。'
+        }
+      };
+      Object.assign(TR.lo, {
+        'Bill of Quotation': 'ໃບສະເໜີລາຄາ', 'quoted on': 'ສະເໜີວັນທີ', 'Quotation total': 'ຍອດລວມໃບສະເໜີລາຄາ', 'BOQ': 'BOQ',
+        'Choose how your BOQ, Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': 'ເລືອກຮູບແບບ BOQ, ໃບແຈ້ງໜີ້ ແລະ ໃບຮັບເງິນ ສຳລັບ ເບິ່ງຕົວຢ່າງ, ພິມ / PDF ແລະ JPEG. ນຳໃຊ້ທັນທີ.'
+      });
+      Object.assign(TR.th, {
+        'Bill of Quotation': 'ใบเสนอราคา', 'quoted on': 'เสนอเมื่อ', 'Quotation total': 'ยอดรวมใบเสนอราคา', 'BOQ': 'BOQ',
+        'Choose how your BOQ, Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': 'เลือกรูปแบบ BOQ ใบแจ้งหนี้ และใบเสร็จรับเงิน สำหรับดูตัวอย่าง พิมพ์ / PDF และ JPEG มีผลทันที'
+      });
+      Object.assign(TR.zh, {
+        'Bill of Quotation': '报价单', 'quoted on': '报价于', 'Quotation total': '报价总额', 'BOQ': '工程量清单',
+        'Choose how your BOQ, Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': '选择工程量清单、发票和收款单在预览、打印 / PDF 和 JPEG 中的样式，立即生效。'
+      });
+      Object.keys(TR).forEach(l => {
+        if (!I18N[l]) return;
+        Object.keys(TR[l]).forEach(k => { if (!I18N[l][k]) I18N[l][k] = TR[l][k]; });
+      });
+
+      // ── Template catalogue ──
+      const LIST = [
+        ['classic', 'Classic', 'Original ConstroBill layout'],
+        ['minimal', 'Minimal', 'Clean black & white, thin rules'],
+        ['modern', 'Modern Band', 'Full-width colour header'],
+        ['sidebar', 'Corporate Sidebar', 'Colour side panel'],
+        ['elegant', 'Elegant Serif', 'Centred serif typography'],
+        ['bold', 'Bold Statement', 'Big title & amount block'],
+        ['blueprint', 'Blueprint', 'Engineering title-block style'],
+        ['ledger', 'Compact Ledger', 'Dense boxed grid for long BOQs'],
+        ['wave', 'Gradient Wave', 'Gradient header, wave edge'],
+        ['mono', 'Typewriter', 'Monospace with dashed rules'],
+        ['split', 'Split Panel', 'Two-tone header with amount'],
+        ['soft', 'Soft Cards', 'Rounded cards, light tints'],
+        ['glass', 'Soft Glass', 'Soft-light frosted glass cards'],
+      ];
+
+      // ── Small helpers ──
+      const HEX = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#1a3bcc';
+      function mix(c, w, p) {
+        const a = parseInt(HEX(c).slice(1), 16), b = parseInt(HEX(w).slice(1), 16);
+        const ch = s => Math.round(((a >> s) & 255) * (1 - p) + ((b >> s) & 255) * p);
+        return '#' + [16, 8, 0].map(s => ch(s).toString(16).padStart(2, '0')).join('');
+      }
+      const F = {
+        sans: () => docFontStack(),
+        serif: () => "Georgia,'Times New Roman'," + docFontStack(),
+        mono: () => "Consolas,'Courier New'," + docFontStack()
+      };
+      const LOC = { en: 'en-US', lo: 'lo-LA', th: 'th-TH-u-ca-gregory', zh: 'zh-CN' };
+      function fd(s) { // ISO date → "November 9, 2026" in the document language
+        if (!s) return '';
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+        if (!m) return esc(s);
+        try { return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(LOC[LANG] || 'en-US', { year: 'numeric', month: 'long', day: 'numeric' }); }
+        catch (e) { return esc(s); }
+      }
+      const cliRec = name => (Array.isArray(CL) && name && CL.find(c => c.name === name)) || null;
+      const isInv = d => d.kind === 'inv';
+      const isBoq = d => d.kind === 'boq';
+      const ts = (d, px) => isBoq(d) ? Math.round(px * .7) : px; // "BILL OF QUOTATION" is long — shrink big titles
+      const hasPay = po => !!(po && (po.bank || po.acnum));
+      const logo = (h, x) => co.logo ? `<img src="${co.logo}" style="max-height:${h}px;max-width:${h * 3}px;object-fit:contain;display:block;${x || ''}"/>` : '';
+      const pill = (fg, bg, s) => `<span style="display:inline-flex;align-items:center;gap:4px;background:${bg};color:${fg};border:1px solid ${fg}33;border-radius:20px;padding:3px 10px;font-size:9.5px;font-weight:700;letter-spacing:.4px;white-space:nowrap">${s}</span>`;
+
+      // ── Normalised document data ──
+      function invData(invId) {
+        const inv = (ST.invoices || []).find(i => i.id === invId); if (!inv) return null;
+        const boq = (ST.boqs || []).find(b => b.id === inv.boqId);
+        const vr = ivRate(inv), P = invPctTotals(inv), vat = P.tU * vr / 100;
+        const disc = inv.discount, hasDisc = !!(disc && disc.enabled && (disc.amtUSD || 0) > 0);
+        const client = inv.client || boq?.client || '';
+        return {
+          kind: 'inv', color: HEX(co.colorInv || co.color || '#0d5c99'),
+          title: t('Invoice'), TITLE: t('INVOICE'), num: inv.num || '',
+          date: inv.date, due: inv.dueDate || '', period: inv.period || '', boqNum: inv.boqNum || '',
+          client, cli: cliRec(client), project: inv.project || boq?.project || '', location: boq?.location || '',
+          items: inv.items || [], P, vr, vat, sub: P.tU, total: P.tU + vat, prev: P.pU,
+          hasDisc, discLabel: hasDisc ? (disc.type === 'pct' ? `${t('Discount')} (${disc.val}%)` : t('Discount')) : '',
+          po: inv.payObj, status: invStatus(inv)
+        };
+      }
+      function recData(recId) {
+        const rec = (ST.receipts || []).find(r => r.id === recId); if (!rec) return null;
+        const inv = (ST.invoices || []).find(i => i.id === rec.invoiceId) || null;
+        const boq = inv ? (ST.boqs || []).find(b => b.id === inv.boqId) : null;
+        const P = invPctTotals(inv), vr = inv ? ivRate(inv) : 0, vat = P.tU * vr / 100;
+        const client = inv?.client || boq?.client || '';
+        return {
+          kind: 'rec', color: HEX(co.colorRec || co.color || '#0e7a45'),
+          title: t('Received Bill'), TITLE: t('RECEIVED BILL'), num: rec.num || '', inv,
+          date: rec.date, period: inv?.period || '', invNum: inv?.num || '',
+          client, cli: cliRec(client), project: inv?.project || boq?.project || '', location: boq?.location || '',
+          items: inv?.items || [], P, vr, vat, sub: P.tU, total: P.tU + vat,
+          po: rec.showPay !== false ? inv?.payObj : null,
+          meth: rec.meth || '', bank: rec.bank || '', by: rec.by || '', rem: rec.rem || '',
+          verifiedAt: rec.verifiedAt || rec.date
+        };
+      }
+      // BOQ: read from the BOQ form, exactly like the Classic BOQ builder does
+      function boqData() {
+        const ic = boqIC(), vr = parseFloat(g('boq-vat') || 10);
+        let sub = 0;
+        const secs = (boqSecs || []).map(sec => {
+          let st = 0;
+          const items = (sec.items || []).map(it => { const amt = (it.pUSD || 0) * (it.qty || 0); st += amt; return { desc: it.desc, unit: it.unit, qty: it.qty, price: it.pUSD || 0, amt }; });
+          sub += st;
+          return { name: sec.name, items, total: st };
+        });
+        const discOn = document.getElementById('disc-enabled')?.checked;
+        const discType = document.getElementById('disc-type')?.value || 'pct';
+        const discVal = parseFloat(g('disc-val') || 0);
+        let disc = 0; if (discOn && discVal > 0) { disc = discType === 'pct' ? sub * discVal / 100 : tu(discVal, ic); disc = Math.min(disc, sub); }
+        const vat = (sub - disc) * vr / 100, client = g('boq-client');
+        return {
+          kind: 'boq', color: HEX(co.colorBoq || co.color || '#1a3bcc'),
+          title: t('Bill of Quotation'), TITLE: t('BILL OF QUOTATION'), num: g('boq-num'), date: g('boq-date'),
+          prepby: g('boq-prepby'), pricedIn: CN[ic] || ic,
+          client, cli: cliRec(client), project: g('boq-project'), location: g('boq-location'),
+          secs, sub, disc, discLabel: discType === 'pct' ? `${t('Discount')} (${discVal}%)` : t('Discount'),
+          vr, vat, total: sub - disc + vat,
+          scope: g('boq-scope'),
+          tc: document.getElementById('tc-show')?.checked && (tcList || []).length ? tcList.map(x => x.text) : [],
+          note: document.getElementById('note-show')?.checked !== false ? g('boq-note') : ''
+        };
+      }
+      const boqHasItems = () => Array.isArray(boqSecs) && boqSecs.some(s => (s.items || []).length);
+      // Sample data — only used for the thumbnails when no real document exists yet
+      function demoData(kind) {
+        if (kind === 'boq') {
+          const sec = (name, rows) => { const items = rows.map(([desc, unit, qty, price]) => ({ desc, unit, qty, price, amt: qty * price })); return { name, items, total: items.reduce((a, i) => a + i.amt, 0) }; };
+          const secs = [sec('Site Works', [['Site clearing & excavation', 'm³', 120, 35], ['Reinforced concrete footing', 'm³', 40, 320]]),
+          sec('Structure', [['Columns & beams C30', 'm³', 50, 370], ['Brick walls 100 mm', 'm²', 400, 16]])];
+          const sub = secs.reduce((a, s) => a + s.total, 0), vat = sub * .1;
+          return {
+            kind: 'boq', color: HEX(co.colorBoq || co.color || '#1a3bcc'), title: t('Bill of Quotation'), TITLE: t('BILL OF QUOTATION'),
+            num: 'BOQ-2026-001', date: todayISO(), prepby: 'Engineer', pricedIn: CN[CURR] || CURR,
+            client: 'Client Co., Ltd.', cli: { contact: 'Project Manager', addr: 'Vientiane, Laos', ph: '+856 20 0000 0000' }, project: 'Office Building', location: '',
+            secs, sub, disc: 0, discLabel: '', vr: 10, vat, total: sub + vat, scope: 'Supply of labour and materials for the structural works.', tc: ['Prices valid for 30 days.'], note: ''
+          };
+        }
+        const it = (sec, desc, unit, b, pp, p) => ({ sec, desc, unit, boqTotal: b, prevPct: pp, prevAmt: b * pp / 100, pct: p, amt: b * p / 100, cumPct: pp + p, cumAmt: b * (pp + p) / 100, rem: b * (100 - pp - p) / 100 });
+        const items = [
+          it('Site Works', 'Site clearing & excavation', 'm³', 4200, 60, 40),
+          it('Site Works', 'Reinforced concrete footing', 'm³', 12800, 40, 35),
+          it('Structure', 'Columns & beams C30', 'm³', 18500, 10, 30),
+          it('Structure', 'Brick walls 100 mm', 'm²', 6400, 0, 25),
+        ];
+        const P = invPctTotals({ items }), vr = 10, vat = P.tU * vr / 100;
+        const base = {
+          client: 'Client Co., Ltd.', cli: { contact: 'Project Manager', addr: 'Vientiane, Laos', ph: '+856 20 0000 0000' },
+          project: 'Office Building', location: '', items, P, vr, vat, sub: P.tU, total: P.tU + vat,
+          po: { type: 'Bank Transfer', bank: 'Bank', acname: co.name || 'Company Ltd.', acnum: '0000-0000-0000', curr: 'USD' }
+        };
+        if (kind === 'inv') return Object.assign(base, {
+          kind, color: HEX(co.colorInv || co.color || '#0d5c99'), title: t('Invoice'), TITLE: t('INVOICE'),
+          num: 'INV-2026-001', date: todayISO(), due: addDays(todayISO(), 15), period: 'Period 1', boqNum: 'BOQ-2026-001',
+          prev: P.pU, hasDisc: false, discLabel: '', status: { key: 'unpaid', days: 15 }
+        });
+        return Object.assign(base, {
+          kind, color: HEX(co.colorRec || co.color || '#0e7a45'), title: t('Received Bill'), TITLE: t('RECEIVED BILL'),
+          num: 'REC-2026-001', inv: {}, date: todayISO(), period: 'Period 1', invNum: 'INV-2026-001',
+          meth: 'Bank Transfer', bank: '', by: 'Accountant', rem: '', verifiedAt: new Date().toISOString()
+        });
+      }
+
+      // ── Style tokens (each template overrides what it needs) ──
+      function tok(d, o) {
+        const c = d.color;
+        const T = Object.assign({
+          c, ink: '#1f2937', mute: '#6b7280', faint: '#9ca3af', line: '#e5e7eb', warn: '#c2610c',
+          font: F.sans(), num: F.sans(), pad: '6px 8px', fs: 11,
+          thBg: c, thFg: '#fff', thB: '', thUp: true, thW: 700, thFs: 9,
+          zebra: mix(c, '#ffffff', .96), secBg: mix(c, '#ffffff', .9), secFg: c,
+          box: false, wrap: false, rowB: '',
+          tfBg: mix(c, '#ffffff', .92), tfB: `2px solid ${c}`, tfFg: c,
+          totMode: 'fill', totBg: c, totFg: '#fff', totLine: '', totAmt: '', radius: 6,
+          card: 'border:1px solid #e5e7eb;border-radius:6px', track: '#e5e7eb', sigLine: '#c8ccd2'
+        }, o || {});
+        if (!T.rowB) T.rowB = `1px solid ${T.line}`;
+        if (!T.h) T.h = s => `<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${T.c};margin:0 0 8px">${s}</div>`;
+        if (!T.lab) T.lab = s => `<div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:${T.c};margin-bottom:6px">${t(s)}</div>`;
+        return T;
+      }
+
+      // ── Shared building blocks ──
+      function headline(d) {
+        if (isBoq(d)) return `${eA(d.total)} ${CURR}${d.date ? ` ${t('quoted on')} ${fd(d.date)}` : ''}`;
+        return isInv(d) ? `${eA(d.total)} ${CURR} ${t('due')} ${fd(d.due || d.date)}` : `${eA(d.total)} ${t('paid on')} ${fd(d.date)}`;
+      }
+      function statusPill(d) {
+        if (isBoq(d)) return '';
+        if (!isInv(d)) return pill('#0f7b55', '#e8f6ef', ICN('check', 10) + ' ' + t('PAYMENT VERIFIED'));
+        const s = d.status || { key: 'unpaid', days: null };
+        const C = { paid: ['#0f7b55', '#e8f6ef'], overdue: ['#b42318', '#fdecea'], unpaid: ['#9a6700', '#fff6db'] }[s.key] || ['#9a6700', '#fff6db'];
+        return pill(C[0], C[1], esc(invStatusLabel(s)) + (s.key === 'paid' && s.date ? ' · ' + fd(s.date) : ''));
+      }
+      function coLines(T, o) {
+        o = o || {};
+        const L = [o.noTag ? '' : co.tag, co.a1, co.a2, co.ph ? `${t('Tel')}: ${co.ph}` : '', co.em, co.web, co.tax ? `${t('Tax ID')}: ${co.tax}` : ''].filter(Boolean);
+        return `${!o.noName && co.name ? `<div style="font-weight:700;font-size:${o.nameFs || T.fs + 1}px;color:${o.nameC || T.ink};margin-bottom:3px">${esc(co.name)}</div>` : ''}`
+          + L.map(x => `<div style="font-size:${T.fs}px;color:${o.c || T.mute};line-height:1.55">${esc(x)}</div>`).join('');
+      }
+      function billTo(d, T, o) {
+        o = o || {};
+        const c = d.cli || {};
+        const L = [c.contact, c.addr, c.ph ? `${t('Tel')}: ${c.ph}` : '', c.em,
+        d.project ? `${t('Project')}: ${d.project}` : '', d.location ? `${t('Location')}: ${d.location}` : ''].filter(Boolean);
+        return `${o.noLabel ? '' : `<div style="${o.labCss || `font-weight:700;font-size:${T.fs}px;color:${T.ink};margin-bottom:3px`}">${t('Bill to')}</div>`}`
+          + `<div style="font-weight:700;font-size:${T.fs + 1}px;color:${o.nameC || T.ink};margin-bottom:2px">${esc(d.client) || '—'}</div>`
+          + L.map(x => `<div style="font-size:${T.fs}px;color:${o.c || T.mute};line-height:1.55;white-space:pre-line">${esc(x)}</div>`).join('');
+      }
+      function metaRows(d) {
+        const cur = ['Currency', esc(CN[CURR] || CURR)];
+        if (isBoq(d)) return [
+          ['BOQ Ref.', esc(d.num)], ['Date', fd(d.date)], ['Prepared By', esc(d.prepby)],
+          ['VAT', d.vr > 0 ? d.vr + '%' : t('Excluded')], ['Priced In', esc(d.pricedIn)], cur
+        ];
+        return isInv(d) ? [
+          ['Invoice number', esc(d.num)], ['Date of issue', fd(d.date)], ['Due Date', d.due ? fd(d.due) : '—'],
+          ['Period', esc(d.period)], ['BOQ Ref.', esc(d.boqNum)], ['VAT', d.vr > 0 ? d.vr + '%' : t('Excluded')], cur
+        ] : [
+          ['Receipt Number', esc(d.num)], ['Invoice number', esc(d.invNum) || '—'], ['Date paid', fd(d.date)],
+          ['Work Period', esc(d.period) || '—'], ['Payment Method', esc(d.meth)], cur
+        ];
+      }
+      function metaTable(d, T, o) {
+        o = o || {};
+        return `<table style="border-collapse:collapse;font-size:${T.fs}px">${metaRows(d).filter(r => r[1]).map(([k, v]) =>
+          `<tr><td style="padding:2px 14px 2px 0;white-space:nowrap;vertical-align:top;${o.k || `color:${T.mute}`}">${t(k)}</td><td style="padding:2px 0;vertical-align:top;${o.v || `color:${T.ink};font-weight:600`}">${v}</td></tr>`).join('')}</table>`;
+      }
+      function metaStack(d, kCss, vCss) {
+        return metaRows(d).filter(r => r[1]).map(([k, v]) => `<div style="margin-bottom:7px"><div style="${kCss}">${t(k)}</div><div style="${vCss}">${v}</div></div>`).join('');
+      }
+      const xrNote = T => showXR() ? `<div style="font-size:${T.fs - 2}px;color:${T.faint};margin-top:6px">${t('Exchange Rates')}: ${xrLine(' · ')}</div>` : '';
+      const wrapT = (T, html) => T.wrap ? `<div style="${T.wrapCss || `border:1px solid ${T.line}`};border-radius:${T.radius}px;overflow:hidden">${html}</div>` : html;
+      function th(T, s, al, w) {
+        return `<th style="padding:${T.pad};background:${T.thBg};color:${T.thFg};font-size:${T.thFs}px;font-weight:${T.thW};text-align:${al};vertical-align:bottom;`
+          + `${T.thUp ? 'text-transform:uppercase;letter-spacing:.5px;' : ''}${T.box ? `border:1px solid ${T.line};` : ''}${T.thB ? `border-bottom:${T.thB};` : ''}${w ? `width:${w}px;` : ''}">${s}</th>`;
+      }
+
+      // Progress-billing line items (same columns as the Classic invoice)
+      function itemsTable(d, T) {
+        const bd = T.box ? `border:1px solid ${T.line};` : `border-bottom:${T.rowB};`;
+        const nw = `white-space:nowrap;font-family:${T.num};`;
+        const td = (s, al, x) => `<td style="padding:${T.pad};${bd}text-align:${al};vertical-align:top;${x || ''}">${s}</td>`;
+        const sm = s => `<div style="font-size:${T.fs - 2}px">${s}</div>`;
+        let rows = '', cs = '', n = 0;
+        d.items.forEach(it => {
+          if (it.sec && it.sec !== cs) {
+            cs = it.sec;
+            rows += `<tr style="page-break-inside:avoid"><td colspan="9" style="padding:${T.pad};${bd}background:${T.secBg};color:${T.secFg};font-weight:700;font-size:${T.fs - 1}px">${esc(it.sec)}</td></tr>`;
+          }
+          n++;
+          rows += `<tr style="page-break-inside:avoid;${T.zebra && n % 2 === 0 ? `background:${T.zebra};` : ''}">`
+            + td(n, 'left', `color:${T.faint};font-size:${T.fs - 1}px`)
+            + td(esc(it.desc), 'left', `color:${T.ink}`)
+            + td(esc(it.unit || ''), 'center', `color:${T.mute};font-size:${T.fs - 1}px`)
+            + td(eA(it.boqTotal) + (d.hasDisc && it.boqRawTotal ? `<div style="font-size:${T.fs - 2}px;color:${T.faint};text-decoration:line-through">${eA(it.boqRawTotal)}</div>` : ''), 'right', nw)
+            + td(fmtPct(it.prevPct) + sm(eA(it.prevAmt)), 'right', nw + `color:${T.mute};font-size:${T.fs - 1}px`)
+            + td(fmtPct(it.pct), 'right', nw + `color:${T.c};font-weight:700`)
+            + td(eA(it.amt), 'right', nw + `font-weight:600;color:${T.ink}`)
+            + td(fmtPct(it.cumPct), 'right', nw + `color:${T.c};font-size:${T.fs - 1}px`)
+            + td(eA(it.rem), 'right', nw + `color:${T.warn};font-size:${T.fs - 1}px`)
+            + '</tr>';
+        });
+        const P = d.P;
+        const tf = (s, al, x) => `<td style="padding:${T.pad};text-align:${al};vertical-align:top;border-top:${T.tfB};${T.box ? `border:1px solid ${T.line};` : ''}${x || ''}">${s}</td>`;
+        const foot = `<tr style="background:${T.tfBg};page-break-inside:avoid">`
+          + tf('', 'left') + tf(t('Total'), 'left', `font-weight:800;color:${T.tfFg}`) + tf('', 'left')
+          + tf(eA(P.bG), 'right', nw + 'font-weight:700')
+          + tf(fmtPct(P.prevPct) + sm(eA(P.pU)), 'right', nw + `color:${T.mute}`)
+          + tf(fmtPct(P.thisPct), 'right', nw + `font-weight:800;color:${T.c}`)
+          + tf(eA(P.tU), 'right', nw + 'font-weight:800')
+          + tf(fmtPct(P.cumPct), 'right', nw + `font-weight:800;color:${T.c}`)
+          + tf(eA(P.rU) + sm(fmtPct(P.remPct)), 'right', nw + `color:${T.warn};font-weight:700`)
+          + '</tr>';
+        const discNote = d.hasDisc ? `<div style="font-size:7.5px;opacity:.75;text-transform:none;font-weight:400">(${esc(d.discLabel)})</div>` : '';
+        return wrapT(T, `<table style="width:100%;border-collapse:collapse;font-size:${T.fs}px;color:${T.ink}">
+          <thead><tr>${th(T, '#', 'left', 22)}${th(T, t('Description'), 'left')}${th(T, t('Unit'), 'center', 34)}${th(T, t('Contract Value') + discNote, 'right')}${th(T, t('Previous'), 'right')}${th(T, t('This Invoice') + ' %', 'right', 46)}${th(T, t('This Invoice'), 'right')}${th(T, t('Cumulative') + ' %', 'right', 46)}${th(T, t('Remaining'), 'right')}</tr></thead>
+          <tbody>${rows}</tbody><tfoot>${foot}</tfoot></table>`);
+      }
+
+      function totals(d, T, w) {
+        const rows = [[t('Subtotal'), eA(d.sub)]];
+        if (isBoq(d)) {
+          if (d.disc > 0) rows.push([esc(d.discLabel), '− ' + eA(d.disc), 'color:#15803d']);
+          rows.push(d.vr > 0 ? [`${t('VAT')} (${d.vr}%)`, eA(d.vat)] : [t('VAT'), t('Excluded'), `color:${T.faint}`]);
+        } else {
+        if (isInv(d) && d.hasDisc) rows.push([esc(d.discLabel), t('Included in contract value'), 'color:#15803d']);
+        rows.push(d.vr > 0 ? [`${t('VAT')} (${d.vr}%)`, eA(d.vat)] : [t('VAT'), t('Excluded'), `color:${T.faint}`]);
+        rows.push(isInv(d) ? [t('Previous Invoiced'), eA(d.prev), `color:${T.faint}`] : [t('Total'), eA(d.total)]);
+        }
+        const gl = isBoq(d) ? t('GRAND TOTAL') : isInv(d) ? t('Amount due') : t('Amount paid');
+        const gv = eA(d.total) + (isInv(d) || isBoq(d) ? ` ${CURR}` : '');
+        let h = rows.map(([k, v, x]) => `<tr><td style="padding:6px 0;border-top:${T.rowB};color:${T.mute};${x || ''}">${k}</td><td style="padding:6px 0 6px 16px;border-top:${T.rowB};text-align:right;white-space:nowrap;font-family:${T.num};color:${T.ink};${x || ''}">${v}</td></tr>`).join('');
+        if (T.totMode === 'fill') {
+          h += `<tr><td colspan="2" style="padding:8px 0 0"><div style="display:flex;justify-content:space-between;align-items:center;gap:16px;background:${T.totBg};color:${T.totFg};padding:10px 14px;border-radius:${T.radius}px;font-weight:800"><span style="font-size:${T.fs + 1}px">${gl}</span><span style="font-size:${T.fs + 5}px;font-family:${T.num};white-space:nowrap">${gv}</span></div></td></tr>`;
+        } else {
+          const bl = T.totLine || `1px solid ${T.ink}`;
+          h += `<tr><td style="padding:8px 0;border-top:${bl};font-weight:800;color:${T.ink}">${gl}</td><td style="padding:8px 0 8px 16px;border-top:${bl};text-align:right;font-weight:800;white-space:nowrap;font-size:${T.fs + 2}px;font-family:${T.num};color:${T.totAmt || T.ink}">${gv}</td></tr>`;
+        }
+        if (isInv(d) && d.status && d.status.key === 'paid') {
+          h += `<tr><td colspan="2" style="padding:6px 0 0"><div style="text-align:center;font-weight:800;font-size:${T.fs}px;letter-spacing:1.5px;color:#0f7b55;background:#e8f6ef;border:1px solid #cdebdc;border-radius:4px;padding:5px">${t('PAID')}${d.status.date ? ' · ' + fd(d.status.date) : ''}</div></td></tr>`;
+        }
+        return `<table style="border-collapse:collapse;width:${w || 280}px;font-size:${T.fs}px;page-break-inside:avoid">${h}</table>`;
+      }
+
+      function payBlock(po, T, title) {
+        if (!hasPay(po)) return '';
+        const kv = (k, v, x) => v ? `<div style="color:${T.mute}">${t(k)}</div><div style="color:${T.ink};${x || ''}">${v}</div>` : '';
+        return `<div style="margin-top:20px;page-break-inside:avoid;${T.card};padding:12px 14px;display:flex;gap:16px;align-items:flex-start">
+          <div style="flex:1;min-width:0">${T.h(title)}
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:${T.fs}px">
+              ${kv('Method', esc(po.type))}${kv('Bank', esc(po.bank))}${kv('Account Name', esc(po.acname), 'font-weight:600')}
+              ${kv('Account No.', esc(po.acnum), `font-weight:800;font-family:${F.mono()};font-size:${T.fs + 2}px;color:${T.c}`)}
+              ${kv('Currency', po.curr ? (po.curr === 'ALL' ? CURS.join(' / ') : esc(po.curr)) : '')}
+              ${kv('Notes', esc(po.notes))}
+            </div>
+          </div>
+          ${po.qr ? `<div style="text-align:center"><div style="font-size:8px;color:${T.mute};margin-bottom:3px;letter-spacing:.6px">${t('QR PAYMENT')}</div><img src="${po.qr}" style="width:84px;height:84px;object-fit:contain"/></div>` : ''}
+        </div>`;
+      }
+
+      function signs(d, T) {
+        const blank = '<div style="height:50px"></div>';
+        const sImg = sig.img ? `<img src="${sig.img}" style="max-height:46px;max-width:140px;object-fit:contain;display:block;margin:0 auto 4px"/>` : blank;
+        const col = (top, label, name, sub) => `<div style="text-align:center">${top}<div style="border-top:1px solid ${T.sigLine};padding-top:5px;font-size:${T.fs - 1}px;color:${T.mute}">${label}</div>`
+          + `${name ? `<div style="font-size:${T.fs}px;font-weight:700;color:${T.ink};margin-top:2px">${esc(name)}</div>` : ''}${sub ? `<div style="font-size:${T.fs - 2}px;color:${T.faint}">${sub}</div>` : ''}</div>`;
+        const sub = [sig.title ? esc(sig.title) : '', isBoq(d) && sig.co ? esc(sig.co) : '', sig.lic ? `${t('Lic')}: ${esc(sig.lic)}` : ''].filter(Boolean).join(' · ');
+        const left = col(sImg, t(d.kind === 'rec' ? 'Authorized Signature' : 'Authorized Signature & Stamp'), sig.name, sub);
+        const right = col(blank, t(d.kind === 'rec' ? 'Received By' : 'Client Acknowledgment'), d.kind === 'rec' ? d.by : '', '');
+        return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:36px;page-break-inside:avoid">${left}${right}</div>`;
+      }
+
+      // Received Bill: what was paid for (grouped by section when the list is long)
+      function recLines(d, T) {
+        const list = d.items.filter(it => Math.abs(Number(it.amt) || 0) > 1e-9);
+        if (!list.length) return '';
+        let rows;
+        if (list.length > 12) {
+          const m = new Map();
+          list.forEach(it => { const k = it.sec || t('Description'); const o = m.get(k) || { desc: k, amt: 0, n: 0 }; o.amt += Number(it.amt) || 0; o.n++; m.set(k, o); });
+          rows = [...m.values()].map(o => ({ desc: o.desc, sub: `${o.n} ${t('items')}`, pct: null, amt: o.amt }));
+        } else rows = list.map(it => ({ desc: it.desc, sub: it.sec || '', pct: it.pct, amt: it.amt }));
+        const bd = `border-bottom:${T.rowB};`;
+        return T.h(t('Billed items')) + wrapT(T, `<table style="width:100%;border-collapse:collapse;font-size:${T.fs}px;color:${T.ink}">
+          <thead><tr>${th(T, t('Description'), 'left')}${th(T, t('This Invoice') + ' %', 'right', 90)}${th(T, t('Amount'), 'right', 130)}</tr></thead>
+          <tbody>${rows.map((r, i) => `<tr style="page-break-inside:avoid;${T.zebra && i % 2 ? `background:${T.zebra};` : ''}">
+            <td style="padding:${T.pad};${bd}">${esc(r.desc)}${r.sub ? `<div style="font-size:${T.fs - 2}px;color:${T.faint}">${esc(r.sub)}</div>` : ''}</td>
+            <td style="padding:${T.pad};${bd}text-align:right;color:${T.c};white-space:nowrap;font-family:${T.num}">${r.pct == null ? '' : fmtPct(r.pct)}</td>
+            <td style="padding:${T.pad};${bd}text-align:right;font-weight:600;white-space:nowrap;font-family:${T.num}">${eA(r.amt)}</td></tr>`).join('')}</tbody></table>`);
+      }
+      function recHistory(d, T) {
+        const bd = `border-bottom:${T.rowB};`;
+        const c = (s, al, x) => `<td style="padding:${T.pad};${bd}text-align:${al};vertical-align:top;${x || ''}">${s}</td>`;
+        return `<div style="margin-top:22px;page-break-inside:avoid">${T.h(t('Payment history'))}${wrapT(T, `<table style="width:100%;border-collapse:collapse;font-size:${T.fs}px;color:${T.ink}">
+          <thead><tr>${th(T, t('Payment Method'), 'left')}${th(T, t('Date'), 'left')}${th(T, t('Received By'), 'left')}${th(T, t('Amount paid'), 'right')}${th(T, t('Receipt Number'), 'right')}</tr></thead>
+          <tbody><tr>${c(esc(d.meth) + (d.bank ? `<div style="font-size:${T.fs - 2}px;color:${T.faint}">${esc(d.bank)}</div>` : ''), 'left')}${c(fd(d.date), 'left')}${c(esc(d.by) || '—', 'left')}
+          ${c(eA(d.total), 'right', `font-weight:700;white-space:nowrap;font-family:${T.num}`)}${c(esc(d.num), 'right', 'white-space:nowrap')}</tr></tbody></table>`)}
+          ${d.rem ? `<div style="margin-top:8px;font-size:${T.fs}px;color:${T.mute}"><b style="color:${T.ink}">${t('Remarks')}:</b> ${esc(d.rem)}</div>` : ''}</div>`;
+      }
+      function recProgress(d, T) {
+        if (!d.inv) return '';
+        const P = d.P, pct = P.bG > 0 ? P.cU / P.bG * 100 : 0;
+        const st = (k, v, col) => `<div><div style="font-size:9px;color:${T.mute};margin-bottom:2px">${t(k)}</div><div style="font-size:${T.fs + 2}px;font-weight:700;color:${col || T.ink};font-family:${T.num};white-space:nowrap">${v}</div></div>`;
+        return `<div style="margin-top:20px;page-break-inside:avoid;${T.card};padding:12px 14px">${T.h(t('Project Progress'))}
+          <div style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:9px">${st('Contract Value', eA(P.bG))}${st('Cumulative Invoiced', eA(P.cU), T.c)}${st('Completion', fmtPct(pct), '#15803d')}${st('Remaining', eA(P.bG - P.cU), T.warn)}</div>
+          <div style="background:${T.track};height:6px;border-radius:3px;overflow:hidden"><div style="background:${T.c};height:100%;width:${Math.max(0, Math.min(pct, 100))}%"></div></div></div>`;
+      }
+
+      // BOQ line items: # / Description / Unit / Qty / Unit Price / Amount, with section totals
+      function boqTable(d, T) {
+        const bd = T.box ? `border:1px solid ${T.line};` : `border-bottom:${T.rowB};`;
+        const nw = `white-space:nowrap;font-family:${T.num};`;
+        const td = (s, al, x) => `<td style="padding:${T.pad};${bd}text-align:${al};vertical-align:top;${x || ''}">${s}</td>`;
+        let rows = '';
+        d.secs.forEach((sec, si) => {
+          rows += `<tr style="page-break-inside:avoid"><td colspan="6" style="padding:${T.pad};${bd}background:${T.secBg};color:${T.secFg};font-weight:700;font-size:${T.fs}px">${si + 1}. ${esc(sec.name)}</td></tr>`;
+          sec.items.forEach((it, ii) => {
+            rows += `<tr style="page-break-inside:avoid;${T.zebra && ii % 2 ? `background:${T.zebra};` : ''}">`
+              + td(`${si + 1}.${ii + 1}`, 'left', `color:${T.faint};font-size:${T.fs - 1}px`)
+              + td(esc(it.desc), 'left', `color:${T.ink}`)
+              + td(esc(it.unit || ''), 'center', `color:${T.mute};font-size:${T.fs - 1}px`)
+              + td(esc(it.qty), 'right', nw)
+              + td(eA(it.price), 'right', nw + `color:${T.mute}`)
+              + td(eA(it.amt), 'right', nw + `font-weight:600;color:${T.ink}`)
+              + '</tr>';
+          });
+          rows += `<tr style="page-break-inside:avoid"><td colspan="5" style="padding:${T.pad};${bd}text-align:right;font-size:${T.fs - 1}px;color:${T.mute}">${t('Section Total')}</td>`
+            + `<td style="padding:${T.pad};${bd}text-align:right;${nw}font-weight:700;color:${T.c}">${eA(sec.total)}</td></tr>`;
+        });
+        return wrapT(T, `<table style="width:100%;border-collapse:collapse;font-size:${T.fs}px;color:${T.ink}">
+          <thead><tr>${th(T, '#', 'left', 40)}${th(T, t('Description'), 'left')}${th(T, t('Unit'), 'center', 44)}${th(T, t('Qty'), 'right', 54)}${th(T, t('Unit Price'), 'right', 110)}${th(T, t('Amount'), 'right', 115)}</tr></thead>
+          <tbody>${rows}</tbody></table>`);
+      }
+      function boqExtras(d, T) {
+        const box = (title, inner) => `<div style="margin-top:20px;page-break-inside:avoid;${T.card};padding:12px 14px">${T.h(title)}${inner}</div>`;
+        let h = '';
+        if (d.tc.length) h += box(t('Terms & Conditions'), d.tc.map((x, i) => `<div style="display:flex;gap:8px;font-size:${T.fs - 0.5}px;color:${T.mute};padding:2px 0"><span style="color:${T.c};font-weight:700;min-width:14px">${i + 1}.</span><span>${esc(x)}</span></div>`).join(''));
+        if (d.note) h += box(t('Notes'), `<div style="font-size:${T.fs}px;color:${T.mute};line-height:1.65;white-space:pre-wrap">${esc(d.note)}</div>`);
+        return h;
+      }
+
+      // Everything below the header — shared so every template shows the same figures
+      function body(d, T, o) {
+        o = o || {};
+        const tw = o.totW || 280;
+        if (isBoq(d)) return (d.scope ? `<div style="margin-bottom:18px;page-break-inside:avoid;${T.card};padding:12px 14px">${T.h(t('Scope of Work'))}<div style="font-size:${T.fs}px;color:${T.mute};line-height:1.65;white-space:pre-wrap">${esc(d.scope)}</div></div>` : '')
+          + boqTable(d, T)
+          + `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-top:16px">
+              <div style="flex:1;min-width:0">${xrNote(T)}</div>${totals(d, T, tw)}</div>`
+          + boqExtras(d, T) + signs(d, T);
+        if (isInv(d)) return itemsTable(d, T)
+          + `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-top:16px">
+              <div style="flex:1;min-width:0;font-size:${T.fs}px;color:${T.mute}">${xrNote(T)}</div>${totals(d, T, tw)}</div>`
+          + payBlock(d.po, T, t('Payment instructions')) + signs(d, T);
+        return recLines(d, T)
+          + `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-top:14px">
+              <div style="flex:1;min-width:0">${xrNote(T)}</div>${totals(d, T, tw)}</div>`
+          + recHistory(d, T) + recProgress(d, T) + payBlock(d.po, T, t('Payment account details')) + signs(d, T);
+      }
+      function foot(d, T, o) {
+        o = o || {};
+        return `<div style="margin-top:28px;border-top:1px solid ${o.line || T.line};padding-top:10px;display:flex;justify-content:space-between;gap:12px;font-size:${T.fs - 2}px;color:${o.c || T.faint}">
+          <div>${esc(d.num)} · ${headline(d)}</div>
+          <div style="text-align:right">${[co.name ? esc(co.name) : '', co.web ? esc(co.web) : '', `${t('Printed')}: ${fd(todayISO())}`].filter(Boolean).join(' · ')}</div></div>`;
+      }
+      // JPEG export renders inside the app page, so neutralise the app's global
+      // table rules here (inline styles in the templates still win).
+      const RESET = '<style>.tpl-doc table{width:auto}.tpl-doc tbody tr{border:0;background:none}.tpl-doc thead th{text-transform:none;letter-spacing:normal;white-space:normal;border:0;background:none}.tpl-doc tbody td{vertical-align:top}</style>';
+      const page = (T, inner, x) => `<div class="a4doc tpl-doc" style="font-family:${T.font};color:${T.ink};background:#fff;line-height:1.4;${x || ''}">${RESET}${inner}</div>`;
+      const amtLabel = d => isBoq(d) ? t('Quotation total') : isInv(d) ? t('Amount due') : t('Amount paid');
+      const dueLine = d => isBoq(d) ? (d.date ? `${t('quoted on')} ${fd(d.date)}` : '') : isInv(d) ? `${t('due')} ${fd(d.due || d.date)}` : `${t('paid on')} ${fd(d.date)}`;
+
+      // ═══ The templates ═══
+      const TPLS = {
+        // 1 · Minimal — modelled on the clean black & white sample invoice / receipt
+        minimal(d) {
+          const K = '#1a1a1a';
+          const T = tok(d, {
+            c: K, ink: K, mute: K, faint: '#777', warn: '#777', line: '#e8e8e8', thBg: 'transparent', thFg: K, thB: `1px solid ${K}`,
+            thUp: false, thW: 500, thFs: 9.5, zebra: '', secBg: 'transparent', secFg: K, tfBg: 'transparent', tfB: `1px solid ${K}`, tfFg: K,
+            totMode: 'line', card: 'border:1px solid #e8e8e8;border-radius:4px', track: '#ececec',
+            h: s => `<div style="font-size:16px;font-weight:700;color:${K};margin:0 0 10px">${s}</div>`
+          });
+          return page(T, `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px">
+              <div style="font-size:28px;font-weight:700;letter-spacing:-.3px">${d.title}</div>${logo(44)}
+            </div>
+            <div style="margin-top:18px">${metaTable(d, T, { k: `font-weight:700;color:${K}`, v: `color:${K}` })}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:22px">
+              <div>${coLines(T, { c: K })}</div><div>${billTo(d, T, { c: K })}</div>
+            </div>
+            <div style="font-size:20px;font-weight:700;margin-top:30px">${headline(d)}</div>
+            ${isInv(d) && hasPay(d.po) ? `<div style="margin-top:8px;font-size:11px;color:${d.color};text-decoration:underline">${t('Pay to')}: ${esc([d.po.bank, d.po.acnum].filter(Boolean).join(' · '))}</div>` : ''}
+            <div style="margin-top:30px">${body(d, T)}</div>${foot(d, T)}`, 'padding:46px 46px 30px');
+        },
+
+        // 2 · Modern Band — full-width colour header
+        modern(d) {
+          const c = d.color, T = tok(d);
+          return page(T, `
+            <div style="background:${c};color:#fff;padding:28px 38px 24px;display:flex;justify-content:space-between;align-items:center;gap:20px">
+              <div style="display:flex;align-items:center;gap:14px;min-width:0">
+                ${co.logo ? `<div style="background:#fff;border-radius:8px;padding:6px 8px">${logo(40)}</div>` : ''}
+                <div><div style="font-size:16px;font-weight:800">${esc(co.name)}</div>${co.tag ? `<div style="font-size:10px;opacity:.8">${esc(co.tag)}</div>` : ''}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:${ts(d, 30)}px;font-weight:900;letter-spacing:1px;line-height:1">${d.TITLE}</div>
+                <div style="font-size:12px;font-weight:600;opacity:.9;margin-top:5px">${esc(d.num)}</div>
+              </div>
+            </div>
+            <div style="background:${mix(c, '#ffffff', .92)};padding:10px 38px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:${mix(c, '#000000', .35)}">
+              <b>${headline(d)}</b>${statusPill(d)}
+            </div>
+            <div style="padding:24px 38px 0;display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:22px">
+              <div>${T.lab('From')}${coLines(T, { noName: true, noTag: true })}</div>
+              <div>${T.lab('Bill to')}${billTo(d, T, { noLabel: true })}</div>
+              <div>${T.lab('Details')}${metaTable(d, T)}</div>
+            </div>
+            <div style="padding:24px 38px 30px">${body(d, T)}${foot(d, T)}</div>`);
+        },
+
+        // 3 · Corporate Sidebar — colour side panel
+        sidebar(d) {
+          const c = d.color;
+          const T = tok(d, { fs: 10, pad: '5px 6px', thBg: mix(c, '#ffffff', .88), thFg: mix(c, '#000000', .35), zebra: '', secBg: '#f6f7f9', secFg: mix(c, '#000000', .2) });
+          const W = 'rgba(255,255,255,.82)';
+          const sep = '<div style="height:1px;background:rgba(255,255,255,.28);margin:18px 0"></div>';
+          const labW = s => `<div style="font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:6px">${t(s)}</div>`;
+          return page(T, `
+            <div style="width:206px;flex-shrink:0;background:${c};color:#fff;padding:34px 20px">
+              ${co.logo ? `<div style="background:#fff;border-radius:8px;padding:8px;display:inline-block;margin-bottom:14px">${logo(42)}</div>` : ''}
+              ${coLines(T, { nameC: '#fff', c: W, nameFs: 13 })}
+              ${sep}${labW('Bill to')}${billTo(d, T, { noLabel: true, nameC: '#fff', c: W })}
+              ${sep}${labW('Details')}${metaStack(d, 'font-size:8.5px;color:rgba(255,255,255,.65)', 'font-size:10.5px;font-weight:600;color:#fff')}
+            </div>
+            <div style="flex:1;min-width:0;padding:38px 28px 30px">
+              <div style="font-size:${ts(d, 34)}px;font-weight:900;color:${c};line-height:1;letter-spacing:-.5px">${d.TITLE}</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
+                <div style="font-size:12px;color:${T.mute};font-weight:600">${esc(d.num)}</div>${statusPill(d)}
+              </div>
+              <div style="margin:18px 0 20px;padding:12px 14px;border-left:4px solid ${c};background:${mix(c, '#ffffff', .94)};font-size:14px;font-weight:700">${headline(d)}</div>
+              ${body(d, T, { totW: 250 })}${foot(d, T)}
+            </div>`, 'display:flex;align-items:stretch');
+        },
+
+        // 4 · Elegant Serif — centred, classic typography
+        elegant(d) {
+          const c = d.color;
+          const T = tok(d, {
+            font: F.serif(), num: F.sans(), ink: '#2b2b2b', line: '#ece7df', thBg: 'transparent', thFg: c, thB: `1px solid ${c}`,
+            thW: 600, zebra: '', secBg: 'transparent', secFg: c, tfBg: 'transparent', tfB: `3px double ${c}`, totMode: 'line',
+            totLine: `3px double ${c}`, totAmt: c, card: `border:1px solid #ece7df`,
+            h: s => `<div style="font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:${c};margin:0 0 10px">${s}</div>`
+          });
+          const sc = s => `<div style="font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:${c};margin-bottom:6px">${t(s)}</div>`;
+          return page(T, `
+            <div style="text-align:center">
+              ${logo(54, 'margin:0 auto 10px')}
+              <div style="font-size:20px;letter-spacing:3px;text-transform:uppercase">${esc(co.name)}</div>
+              ${co.tag ? `<div style="font-style:italic;color:${T.mute};font-size:11px;margin-top:3px">${esc(co.tag)}</div>` : ''}
+              <div style="font-size:10px;color:${T.mute};margin-top:6px">${[co.a1, co.a2, co.ph ? t('Tel') + ': ' + co.ph : '', co.em, co.web].filter(Boolean).map(esc).join(' &nbsp;·&nbsp; ')}</div>
+              ${co.tax ? `<div style="font-size:9px;color:${T.faint};margin-top:2px">${t('Tax ID')}: ${esc(co.tax)}</div>` : ''}
+            </div>
+            <div style="border-top:3px double ${c};margin:20px 0 22px"></div>
+            <div style="text-align:center;font-size:${ts(d, 30)}px;letter-spacing:${isBoq(d) ? 5 : 8}px;text-transform:uppercase;color:${c}">${d.title}</div>
+            <div style="text-align:center;font-style:italic;color:${T.mute};margin-top:4px;font-size:12px">${t('No.')} ${esc(d.num)}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:26px">
+              <div>${sc('Bill to')}${billTo(d, T, { noLabel: true })}</div>
+              <div style="display:flex;justify-content:flex-end"><div>${sc('Details')}${metaTable(d, T, { v: `color:${T.ink}` })}</div></div>
+            </div>
+            <div style="text-align:center;margin:26px 0 22px;font-size:17px;font-style:italic">${headline(d)}</div>
+            ${body(d, T)}${foot(d, T)}`, 'padding:44px 52px 30px');
+        },
+
+        // 5 · Bold Statement — big title and amount block
+        bold(d) {
+          const c = d.color, K = '#111111';
+          const T = tok(d, {
+            ink: K, thBg: K, thFg: '#fff', zebra: '#f6f6f6', secBg: mix(c, '#ffffff', .85), secFg: K, tfBg: '#f0f0f0', tfB: `2px solid ${K}`, tfFg: K,
+            totBg: K, radius: 0, card: 'border:2px solid #111',
+            h: s => `<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.5px;color:${K};margin:0 0 10px;padding-bottom:5px;border-bottom:3px solid ${c};display:inline-block">${s}</div>`,
+            lab: s => `<div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.6px;color:${K};margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid ${c};display:inline-block">${t(s)}</div>`
+          });
+          return page(T, `
+            <div style="padding:34px 40px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:24px">
+              <div>
+                ${logo(40, 'margin-bottom:14px')}
+                <div style="font-size:${ts(d, 52)}px;font-weight:900;line-height:.95;letter-spacing:-2px;color:${K}">${d.TITLE}</div>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><span style="font-size:13px;font-weight:800;color:${c}">${esc(d.num)}</span>${statusPill(d)}</div>
+              </div>
+              <div style="background:${c};color:#fff;padding:18px 22px;min-width:230px;text-align:right">
+                <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;opacity:.85">${amtLabel(d)}</div>
+                <div style="font-size:28px;font-weight:900;letter-spacing:-.5px;margin-top:4px;white-space:nowrap">${eA(d.total)}</div>
+                <div style="font-size:11px;opacity:.9;margin-top:4px">${dueLine(d)}</div>
+              </div>
+            </div>
+            <div style="padding:26px 40px 0;display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:24px">
+              <div>${T.lab('From')}${coLines(T)}</div><div>${T.lab('Bill to')}${billTo(d, T, { noLabel: true })}</div><div>${T.lab('Details')}${metaTable(d, T)}</div>
+            </div>
+            <div style="padding:26px 40px 30px">${body(d, T)}${foot(d, T)}</div>`, `border-top:10px solid ${c}`);
+        },
+
+        // 6 · Blueprint — engineering drawing title-block
+        blueprint(d) {
+          const c = d.color, dark = mix(c, '#0b1220', .72), M = F.mono();
+          const T = tok(d, {
+            num: M, thBg: dark, thFg: '#fff', zebra: '#f5f7fa', secBg: mix(c, '#ffffff', .88), secFg: dark, tfBg: mix(c, '#ffffff', .9),
+            tfB: `2px solid ${dark}`, tfFg: dark, totBg: dark, radius: 2, card: 'border:1px solid #cfd6e0;border-radius:2px',
+            h: s => `<div style="font-family:${M};font-size:11px;font-weight:700;color:${dark};margin:0 0 8px;letter-spacing:.5px">// ${s}</div>`
+          });
+          const cells = [['Bill to', esc(d.client) || '—'], ['Project', esc(d.project) || '—']].concat(metaRows(d).filter(r => r[1]));
+          let grid = '';
+          for (let i = 0; i < cells.length; i += 4) {
+            grid += '<tr>' + cells.slice(i, i + 4).map(([k, v]) => `<td style="border:1px solid #cfd6e0;padding:6px 9px;vertical-align:top;width:25%"><div style="font-family:${M};font-size:8px;text-transform:uppercase;letter-spacing:.8px;color:#6b7a90;margin-bottom:2px">${t(k)}</div><div style="font-size:11px;font-weight:600;color:${T.ink}">${v}</div></td>`).join('') + '</tr>';
+          }
+          return page(T, `
+            <div style="background:${dark};color:#fff;padding:26px 36px;border-bottom:5px solid ${c};display:flex;justify-content:space-between;gap:24px;align-items:flex-start">
+              <div style="min-width:0">
+                ${co.logo ? `<div style="background:#fff;border-radius:4px;padding:6px;display:inline-block;margin-bottom:8px">${logo(36)}</div>` : ''}
+                ${coLines(T, { nameC: '#fff', c: 'rgba(255,255,255,.72)', nameFs: 15 })}
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-family:${M};font-size:10px;color:${mix(c, '#ffffff', .45)};letter-spacing:2px">// ${fd(d.date)}</div>
+                <div style="font-family:${M};font-size:${ts(d, 30)}px;font-weight:700;letter-spacing:2px;margin-top:6px">${d.TITLE}</div>
+                <div style="font-family:${M};font-size:13px;color:${mix(c, '#ffffff', .5)};margin-top:4px">${esc(d.num)}</div>
+                <div style="margin-top:8px">${statusPill(d)}</div>
+              </div>
+            </div>
+            <div style="padding:22px 36px 30px">
+              <table style="width:100%;border-collapse:collapse">${grid}</table>
+              <div style="font-family:${M};font-size:15px;font-weight:700;color:${dark};margin:20px 0 18px">&gt; ${headline(d)}</div>
+              ${body(d, T)}${foot(d, T)}
+            </div>`);
+        },
+
+        // 7 · Compact Ledger — dense boxed grid, fits long BOQs
+        ledger(d) {
+          const c = d.color, L = '#cfd4da', K = '#222222';
+          const T = tok(d, {
+            fs: 10, pad: '4px 6px', box: true, line: L, ink: K, mute: '#555', thBg: '#eef0f3', thFg: K, thUp: false, thFs: 9, zebra: '',
+            secBg: '#f7f8fa', secFg: K, tfBg: '#eef0f3', tfB: `1px solid ${L}`, tfFg: K, radius: 0, card: `border:1px solid ${L}`,
+            h: s => `<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:${K};margin:0 0 6px">${s}</div>`
+          });
+          const B = `border:1px solid ${L}`;
+          return page(T, `
+            <table style="width:100%;border-collapse:collapse;font-size:10px">
+              <tr>
+                <td rowspan="2" style="${B};padding:10px 12px;width:56%;vertical-align:top">${logo(36, 'margin-bottom:6px')}${coLines(T)}</td>
+                <td style="${B};background:${c};color:#fff;padding:12px;text-align:center;font-size:20px;font-weight:800;letter-spacing:2px">${d.TITLE}</td>
+              </tr>
+              <tr><td style="${B};padding:7px 10px;vertical-align:top">${metaTable(d, T)}</td></tr>
+              <tr><td colspan="2" style="${B};padding:9px 12px">
+                <div style="display:flex;justify-content:space-between;gap:24px;align-items:flex-start">
+                  <div style="flex:1;min-width:0">${billTo(d, T)}</div>
+                  <div style="text-align:right"><div style="font-size:9px;color:${T.mute};text-transform:uppercase;letter-spacing:.6px">${amtLabel(d)}</div><div style="font-weight:800;font-size:16px;color:${c};white-space:nowrap">${eA(d.total)}</div><div style="font-size:10px;color:${T.mute};margin-top:2px">${dueLine(d)}</div><div style="margin-top:5px">${statusPill(d)}</div></div>
+                </div>
+              </td></tr>
+            </table>
+            <div style="margin-top:12px">${body(d, T, { totW: 260 })}</div>${foot(d, T)}`, 'padding:30px 32px');
+        },
+
+        // 8 · Gradient Wave — gradient header with a wave edge
+        wave(d) {
+          const c = d.color, c1 = mix(c, '#000000', .15), c2 = mix(c, '#ffffff', .38);
+          const G = `linear-gradient(90deg,${c1},${c2})`;
+          const T = tok(d, {
+            thBg: mix(c, '#ffffff', .88), thFg: mix(c, '#000000', .35), zebra: '', line: '#edf0f4', secBg: '#f7f9fc', secFg: mix(c, '#000000', .25),
+            tfBg: mix(c, '#ffffff', .93), totBg: G, radius: 10, card: 'border:1px solid #e6eaf0;border-radius:12px', wrap: true
+          });
+          const card = 'border:1px solid #e6eaf0;border-radius:12px;padding:12px 14px';
+          return page(T, `
+            <div style="background:${G};color:#fff;padding:30px 0 0">
+              <div style="padding:0 40px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px">
+                <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                  ${co.logo ? `<div style="background:#fff;border-radius:10px;padding:6px 8px">${logo(38)}</div>` : ''}
+                  <div><div style="font-size:16px;font-weight:800">${esc(co.name)}</div>${co.tag ? `<div style="font-size:10px;opacity:.85">${esc(co.tag)}</div>` : ''}</div>
+                </div>
+                <div style="text-align:right"><div style="font-size:${ts(d, 32)}px;font-weight:800;line-height:1">${d.title}</div><div style="font-size:12px;opacity:.9;margin-top:5px">${esc(d.num)}</div></div>
+              </div>
+              <svg viewBox="0 0 794 46" preserveAspectRatio="none" style="display:block;width:100%;height:46px;margin-top:14px">
+                <path d="M0 30C36 38 80 36 140 26C250 8 350 14 470 30C590 46 690 44 794 16V46H0Z" fill="#ffffff"/>
+              </svg>
+            </div>
+            <div style="padding:6px 40px 30px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="font-size:18px;font-weight:800;color:${mix(c, '#000000', .3)}">${headline(d)}</div>${statusPill(d)}
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:12px;margin-bottom:20px">
+                <div style="${card}">${T.lab('From')}${coLines(T, { noName: true, noTag: true })}</div>
+                <div style="${card}">${T.lab('Bill to')}${billTo(d, T, { noLabel: true })}</div>
+                <div style="${card}">${T.lab('Details')}${metaTable(d, T)}</div>
+              </div>
+              ${body(d, T)}${foot(d, T)}
+            </div>`);
+        },
+
+        // 9 · Typewriter — monospace, dashed rules
+        mono(d) {
+          const K = '#111111', M = F.mono();
+          const T = tok(d, {
+            font: M, num: M, fs: 10.5, c: K, ink: K, mute: '#444', faint: '#777', warn: '#444', line: '#bbb', rowB: '1px dashed #bbb',
+            thBg: 'transparent', thFg: K, thB: `1px dashed ${K}`, zebra: '', secBg: 'transparent', secFg: K, tfBg: 'transparent',
+            tfB: `1px dashed ${K}`, tfFg: K, totMode: 'line', totLine: `3px double ${K}`, card: 'border:1px dashed #888', track: '#ddd', sigLine: '#888',
+            h: s => `<div style="font-size:11px;font-weight:700;margin:0 0 8px;letter-spacing:2px">=== ${s} ===</div>`
+          });
+          return page(T, `
+            <div style="text-align:center">
+              ${logo(40, 'margin:0 auto 8px')}
+              <div style="font-size:18px;font-weight:700;letter-spacing:3px;text-transform:uppercase">${esc(co.name)}</div>
+              <div style="margin-top:4px">${[co.tag, co.a1, co.a2, co.ph ? t('Tel') + ': ' + co.ph : '', co.em, co.tax ? t('Tax ID') + ': ' + co.tax : ''].filter(Boolean).map(x => `<div style="font-size:10px;color:#444;line-height:1.5">${esc(x)}</div>`).join('')}</div>
+            </div>
+            <div style="border-top:1px dashed ${K};border-bottom:1px dashed ${K};margin:18px 0;padding:8px 0;text-align:center;font-size:20px;font-weight:700;letter-spacing:6px">${d.TITLE}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px">
+              <div>${billTo(d, T)}</div><div style="display:flex;justify-content:flex-end">${metaTable(d, T, { v: `color:${K}` })}</div>
+            </div>
+            <div style="margin:20px 0;padding:10px;border:2px solid ${K};text-align:center;font-size:15px;font-weight:700">${headline(d)}</div>
+            ${body(d, T)}${foot(d, T)}
+            <div style="text-align:center;margin-top:16px;font-size:10px;letter-spacing:2px">*** ${t('Thank you for your business!')} ***</div>`, 'padding:44px 54px 30px');
+        },
+
+        // 10 · Split Panel — two-tone header with amount
+        split(d) {
+          const c = d.color;
+          const T = tok(d, { thBg: 'transparent', thFg: c, thB: `2px solid ${c}`, zebra: '#f7f8fa', secBg: 'transparent', secFg: c, tfBg: 'transparent', radius: 4 });
+          const box = 'background:#f6f7f9;border-radius:6px;padding:14px 16px';
+          return page(T, `
+            <div style="display:flex;align-items:stretch">
+              <div style="width:46%;background:${c};color:#fff;padding:34px 32px 28px">
+                <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:.8">${esc(d.num)}</div>
+                <div style="font-size:${ts(d, 38)}px;font-weight:900;line-height:1;margin-top:6px">${d.title}</div>
+                <div style="margin-top:22px;font-size:10px;letter-spacing:1px;text-transform:uppercase;opacity:.8">${amtLabel(d)}</div>
+                <div style="font-size:26px;font-weight:800;white-space:nowrap">${eA(d.total)}</div>
+                <div style="font-size:11px;opacity:.9;margin-top:2px">${dueLine(d)}</div>
+                <div style="margin-top:10px">${statusPill(d)}</div>
+              </div>
+              <div style="flex:1;padding:30px 36px 24px;text-align:right">${logo(48, 'margin:0 0 10px auto')}${coLines(T)}</div>
+            </div>
+            <div style="padding:24px 36px 0;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div style="${box}">${T.lab('Bill to')}${billTo(d, T, { noLabel: true })}</div>
+              <div style="${box}">${T.lab('Details')}${metaTable(d, T)}</div>
+            </div>
+            <div style="padding:22px 36px 30px">${body(d, T)}${foot(d, T)}</div>`);
+        },
+
+        // 11 · Soft Cards — rounded cards, light tints
+        soft(d) {
+          const c = d.color, tint = mix(c, '#ffffff', .92), deep = mix(c, '#000000', .28);
+          const T = tok(d, {
+            thBg: tint, thFg: deep, thUp: false, thFs: 9.5, zebra: '', line: '#eef0f3', secBg: '#fafbfc', secFg: deep,
+            tfBg: tint, tfB: '0', tfFg: deep, radius: 12, wrap: true, card: 'background:#fafbfc;border:1px solid #eef0f3;border-radius:14px',
+            h: s => `<div style="font-size:12px;font-weight:700;color:${deep};margin:0 0 8px">${s}</div>`,
+            lab: s => `<div style="font-size:10px;font-weight:700;color:${deep};margin-bottom:6px">${t(s)}</div>`
+          });
+          const card = 'background:#fafbfc;border:1px solid #eef0f3;border-radius:14px;padding:14px 16px';
+          return page(T, `
+            <div style="background:${tint};border-radius:18px;padding:22px 26px;display:flex;justify-content:space-between;align-items:center;gap:20px">
+              <div style="display:flex;align-items:center;gap:12px;min-width:0">${logo(42)}<div><div style="font-size:15px;font-weight:800;color:${deep}">${esc(co.name)}</div>${co.tag ? `<div style="font-size:10px;color:${T.mute}">${esc(co.tag)}</div>` : ''}</div></div>
+              <div style="text-align:right"><div style="font-size:${ts(d, 26)}px;font-weight:800;color:${c};line-height:1">${d.title}</div><div style="font-size:12px;color:${T.mute};margin:5px 0 6px">${esc(d.num)}</div>${statusPill(d)}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:12px;margin-top:12px">
+              <div style="${card}">${T.lab('From')}${coLines(T, { noName: true, noTag: true })}</div>
+              <div style="${card}">${T.lab('Bill to')}${billTo(d, T, { noLabel: true })}</div>
+              <div style="${card}">${T.lab('Details')}${metaTable(d, T)}</div>
+            </div>
+            <div style="margin-top:12px;border-radius:14px;padding:16px 20px;background:${c};color:#fff;display:flex;justify-content:space-between;align-items:center;gap:16px">
+              <span style="font-size:12px;opacity:.85">${amtLabel(d)}</span><span style="font-size:18px;font-weight:800">${headline(d)}</span>
+            </div>
+            <div style="margin-top:20px">${body(d, T)}</div>${foot(d, T)}`, 'padding:30px');
+        },
+
+        // 12 · Soft Glass — soft-light frosted glass cards over a pastel aurora
+        glass(d) {
+          const c = d.color, deep = mix(c, '#0f172a', .35);
+          const a1 = mix(c, '#ffffff', .55), a2 = mix(c, '#c084fc', .55), a3 = mix(c, '#5eead4', .6);
+          const BG = `radial-gradient(circle at 8% 4%, ${a1}cc 0, ${a1}00 34%), radial-gradient(circle at 96% 14%, ${a2}99 0, ${a2}00 36%), radial-gradient(circle at 70% 62%, ${a3}55 0, ${a3}00 42%), radial-gradient(circle at 4% 92%, ${a2}55 0, ${a2}00 38%), linear-gradient(165deg, #f7f8ff 0%, #f1f5fb 55%, #f7f3ff 100%)`;
+          // No box-shadow on the translucent cards: html2canvas (JPEG) paints it underneath and greys them out
+          const GL = 'background:rgba(255,255,255,.66);border:1px solid rgba(255,255,255,.98);border-bottom-color:rgba(148,163,184,.35);border-radius:16px';
+          const GRAD = `linear-gradient(120deg, ${mix(c, '#000000', .08)}, ${mix(c, '#c084fc', .42)})`;
+          const T = tok(d, {
+            ink: '#1e293b', mute: '#5b6477', faint: '#8a93a6', line: 'rgba(15,23,42,.07)', rowB: '1px solid rgba(15,23,42,.06)',
+            thBg: 'rgba(255,255,255,.7)', thFg: deep, thUp: false, thFs: 9.5, zebra: 'rgba(255,255,255,.35)',
+            secBg: 'rgba(255,255,255,.55)', secFg: deep, tfBg: 'rgba(255,255,255,.7)', tfB: `1px solid ${mix(c, '#ffffff', .6)}`, tfFg: deep,
+            totBg: GRAD, radius: 14, wrap: true, wrapCss: GL, card: GL, track: 'rgba(15,23,42,.08)', sigLine: 'rgba(15,23,42,.18)',
+            h: s => `<div style="font-size:12px;font-weight:700;color:${deep};margin:0 0 8px">${s}</div>`,
+            lab: s => `<div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:${mix(c, '#475569', .35)};margin-bottom:6px">${t(s)}</div>`
+          });
+          const card = GL + ';padding:14px 16px';
+          return page(T, `
+            <div style="${GL};padding:22px 24px;display:flex;justify-content:space-between;align-items:center;gap:20px">
+              <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                ${co.logo ? `<div style="background:rgba(255,255,255,.9);border-radius:12px;padding:6px 8px">${logo(40)}</div>` : ''}
+                <div><div style="font-size:15px;font-weight:800;color:${deep}">${esc(co.name)}</div>${co.tag ? `<div style="font-size:10px;color:${T.mute}">${esc(co.tag)}</div>` : ''}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:${ts(d, 28)}px;font-weight:800;color:${deep};line-height:1;letter-spacing:-.3px">${d.title}</div>
+                <div style="font-size:12px;color:${T.mute};margin:5px 0 ${statusPill(d) ? 6 : 0}px">${esc(d.num)}</div>${statusPill(d)}
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:12px;margin-top:12px">
+              <div style="${card}">${T.lab('From')}${coLines(T, { noName: true, noTag: true })}</div>
+              <div style="${card}">${T.lab('Bill to')}${billTo(d, T, { noLabel: true })}</div>
+              <div style="${card}">${T.lab('Details')}${metaTable(d, T)}</div>
+            </div>
+            <div style="margin-top:12px;border-radius:16px;padding:16px 20px;background:${GRAD};color:#fff;display:flex;justify-content:space-between;align-items:center;gap:16px;box-shadow:0 10px 28px ${c}40">
+              <span style="font-size:11px;letter-spacing:.8px;text-transform:uppercase;opacity:.9">${amtLabel(d)}</span><span style="font-size:18px;font-weight:800">${headline(d)}</span>
+            </div>
+            <div style="margin-top:18px">${body(d, T)}</div>${foot(d, T, { line: 'rgba(15,23,42,.1)' })}`, `padding:30px;background:${BG}`);
+        },
+      };
+
+      // ── Hook into the existing builders (Preview, Print / PDF and JPEG) ──
+      const KEY = { boq: 'tplBoq', inv: 'tplInv', rec: 'tplRec' };
+      const cur = kind => { const v = co[KEY[kind]]; return TPLS[v] ? v : 'classic'; };
+      const _inv = window.buildInvHtml, _rec = window.buildRecHtml, _boq = window.buildBOQHtml;
+      function render(kind, id, orig, args) {
+        const tp = cur(kind);
+        if (tp !== 'classic') {
+          try { const d = kind === 'boq' ? boqData() : kind === 'inv' ? invData(id) : recData(id); if (d) return TPLS[tp](d); }
+          catch (e) { console.error('[templates]', e); } // never block an export — fall back to Classic
+        }
+        return orig.apply(window, args);
+      }
+      window.buildInvHtml = function (invId) { return render('inv', invId, _inv, arguments); };
+      window.buildRecHtml = function (recId) { return render('rec', recId, _rec, arguments); };
+      window.buildBOQHtml = function () { return render('boq', null, _boq, arguments); };
+
+      function setTpl(kind, id) {
+        if (!KEY[kind] || !(id === 'classic' || TPLS[id])) return;
+        co[KEY[kind]] = id;
+        try { localStorage.setItem('cb_co', JSON.stringify(co)); } catch (e) { }
+        if (typeof queueSync === 'function') queueSync();
+      }
+
+      // ── Preview toolbar: Template dropdown ──
+      const _previewDoc = window.previewDoc;
+      window.previewDoc = function (type) {
+        const w = document.getElementById('prev-tpl-wrap'), s = document.getElementById('prev-tpl');
+        if (w && s) {
+          const on = !!KEY[type];
+          w.style.display = on ? 'flex' : 'none';
+          if (on) { s.innerHTML = LIST.map(([v, n]) => `<option value="${v}">${n}</option>`).join(''); s.value = cur(type); }
+        }
+        return _previewDoc.apply(this, arguments);
+      };
+      window.setDocTemplate = function (id) {
+        const type = _prevState.type, docId = _prevState.id;
+        if (!KEY[type]) return;
+        setTpl(type, id);
+        previewDoc(type, docId);
+        renderPicker();
+      };
+
+      // ── Settings → Company: visual template gallery ──
+      let pickKind = 'inv';
+      const srcdoc = html => `<!DOCTYPE html><html lang="${LANG}"><head><meta charset="UTF-8">${docFontLink()}<style>*{box-sizing:border-box;margin:0;padding:0}html,body{background:#fff;width:794px;overflow:hidden;font-family:${docFontStack()}}.a4doc{width:794px;background:#fff}</style></head><body>${html}</body></html>`;
+      const CLASSIC_TITLE = { boq: 'BILL OF QUOTATION', inv: 'INVOICE', rec: 'RECEIVED BILL' };
+      function thumbHtml(kind, id) {
+        if (kind === 'boq') {
+          const has = boqHasItems();
+          if (id === 'classic') {
+            if (has) { try { return _boq(); } catch (e) { } }
+            return `<div class="a4doc" style="padding:60px;font-size:40px;color:#888;text-align:center">${t(CLASSIC_TITLE.boq)}<div style="font-size:24px;margin-top:20px">Classic</div></div>`;
+          }
+          let d = null;
+          if (has) { try { d = boqData(); } catch (e) { } }
+          try { return TPLS[id](d || demoData('boq')); } catch (e) { return ''; }
+        }
+        const list = kind === 'inv' ? (ST.invoices || []) : (ST.receipts || []);
+        const real = list.length ? list[list.length - 1] : null;
+        if (id === 'classic') {
+          if (real) { try { return (kind === 'inv' ? _inv : _rec)(real.id); } catch (e) { } }
+          return `<div class="a4doc" style="padding:60px;font-size:40px;color:#888;text-align:center">${t(CLASSIC_TITLE[kind])}<div style="font-size:24px;margin-top:20px">Classic</div></div>`;
+        }
+        let d = null;
+        if (real) { try { d = kind === 'inv' ? invData(real.id) : recData(real.id); } catch (e) { } }
+        try { return TPLS[id](d || demoData(kind)); } catch (e) { return ''; }
+      }
+      function renderPicker() {
+        const el = document.getElementById('tpl-picker'); if (!el) return;
+        const sel = cur(pickKind);
+        const tab = (k, label) => `<button type="button" class="btn btn-sm ${pickKind === k ? 'btn-p' : 'btn-o'}" onclick="tplPickKind('${k}')">${label}</button>`;
+        el.innerHTML = `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">${tab('boq', t('BOQ'))}${tab('inv', t('Invoice'))}${tab('rec', t('Received Bill'))}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,124px);gap:10px;justify-content:start">${LIST.map(([v, n, ds]) => {
+          const on = v === sel;
+          const doc = srcdoc(thumbHtml(pickKind, v)).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+          return `<button type="button" onclick="tplPick('${v}')" title="${ds}" style="width:124px;padding:0;text-align:left;cursor:pointer;border:2px solid ${on ? 'var(--ac)' : 'var(--bd)'};border-radius:10px;overflow:hidden;background:var(--sf2);color:var(--tx);font:inherit;${on ? 'box-shadow:0 0 0 3px rgba(79,124,255,.18)' : ''}">
+              <div style="width:120px;height:170px;overflow:hidden;background:#fff;position:relative">
+                <iframe srcdoc="${doc}" tabindex="-1" aria-hidden="true" scrolling="no" style="position:absolute;left:0;top:0;width:794px;height:1123px;border:0;transform:scale(.1511);transform-origin:0 0;pointer-events:none;background:#fff"></iframe>
+              </div>
+              <div style="padding:6px 8px 2px;font-size:11px;font-weight:700">${on ? '✓ ' : ''}${n}</div>
+              <div style="padding:0 8px 7px;font-size:9.5px;color:var(--tx3);line-height:1.3">${ds}</div>
+            </button>`;
+        }).join('')}</div>`;
+      }
+      window.tplPickKind = function (k) { if (KEY[k]) { pickKind = k; renderPicker(); } };
+      window.tplPick = function (id) { setTpl(pickKind, id); renderPicker(); };
+
+      const _openSettingsTab = window.openSettingsTab;
+      window.openSettingsTab = function () {
+        const r = _openSettingsTab.apply(this, arguments);
+        try { renderPicker(); } catch (e) { console.error('[templates]', e); }
+        return r;
+      };
     })();
   </script>
 </body>
