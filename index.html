@@ -4852,9 +4852,12 @@
 
       const body = JSON.stringify({ action, ...payload });
 
-      // AbortController for timeout (15 seconds)
+      // AbortController for timeout. Cloud save / load carry the whole account
+      // (images included) and the server writes it in many sheet chunks, which
+      // regularly took longer than 15 s — the app then showed "Sync failed" for
+      // saves that actually completed. Give those two calls 90 s.
       const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 15000);
+      const timeoutId = setTimeout(() => ctrl.abort(), (action === 'saveData' || action === 'loadData') ? 90000 : 15000);
 
       try {
         // Google Apps Script requires no-cors or cors with proper deploy settings.
@@ -4973,6 +4976,8 @@
       } catch (e) {
         _syncBusy = false;
         _lastSyncErr = e.message || 'Unknown error';
+        // An expired login can never succeed by retrying — say so instead.
+        if (/expired session|session expired/i.test(_lastSyncErr)) { showSyncStatus('expired'); return false; }
         showSyncStatus('error');
         // Back off and retry: 5s, 15s, 45s — then wait for the next change.
         if (_syncRetry < 3) {
@@ -5050,11 +5055,24 @@
         const kb = bytes ? ' (' + Math.round(bytes / 1024) + ' KB)' : '';
         set('rgba(30,217,122,.15)', 'var(--gr)', '<i data-ic=check></i> ' + t('Saved to cloud') + kb, 2500);
       } else if (status === 'error') {
+        // Show the reason on the badge itself (it used to be only in the tooltip)
+        const e = _lastSyncErr || '';
+        const why = /timed out/i.test(e) ? t('server took too long')
+          : /cannot reach|network|fetch/i.test(e) ? t('no internet connection')
+            : /busy/i.test(e) ? t('server busy')
+              : e.replace(/^(Save failed|Server error):\s*/i, '').slice(0, 60);
         set('rgba(255,79,79,.15)', 'var(--re)',
-          '<i data-ic=alert></i> ' + t('Sync failed') + ' — ' + t('click to retry'));
+          '<i data-ic=alert></i> ' + t('Sync failed') + (why ? ' (' + esc(why) + ')' : '') + ' — ' + t('click to retry'));
         el.title = _lastSyncErr;
         el.style.cursor = 'pointer';
         el.onclick = retrySync;
+      } else if (status === 'expired') {
+        set('rgba(255,79,79,.15)', 'var(--re)',
+          '<i data-ic=alert></i> ' + t('Session expired — please sign in again'));
+        el.title = _lastSyncErr;
+        el.style.cursor = 'pointer';
+        el.onclick = () => alert(t('Your login session has expired, so changes cannot be uploaded. They are still saved in this browser.') + '\n\n'
+          + t('To keep them safe: 1) open the menu and use "Backup data", 2) sign out and sign in again, 3) if anything is missing, use "Restore data".'));
       } else if (status === 'blocked') {
         set('rgba(255,79,79,.15)', 'var(--re)',
           '<i data-ic=alert></i> ' + t('Offline — saved on this device only'));
@@ -10933,6 +10951,25 @@
       Object.assign(TR.zh, {
         'Bill of Quotation': '报价单', 'quoted on': '报价于', 'Quotation total': '报价总额', 'BOQ': '工程量清单',
         'Choose how your BOQ, Invoice and Received Bill look in Preview, Print / PDF and JPEG. Applies instantly.': '选择工程量清单、发票和收款单在预览、打印 / PDF 和 JPEG 中的样式，立即生效。'
+      });
+      // Sync status messages
+      Object.assign(TR.lo, {
+        'server took too long': 'ເຊີບເວີຕອບຊ້າເກີນໄປ', 'no internet connection': 'ບໍ່ມີອິນເຕີເນັດ', 'server busy': 'ເຊີບເວີບໍ່ຫວ່າງ',
+        'Session expired — please sign in again': 'ໝົດເວລາເຂົ້າສູ່ລະບົບ — ກະລຸນາເຂົ້າສູ່ລະບົບໃໝ່',
+        'Your login session has expired, so changes cannot be uploaded. They are still saved in this browser.': 'ການເຂົ້າສູ່ລະບົບໝົດອາຍຸແລ້ວ ຈຶ່ງອັບໂຫຼດການປ່ຽນແປງບໍ່ໄດ້. ຂໍ້ມູນຍັງຖືກບັນທຶກໄວ້ໃນບຣາວເຊີນີ້.',
+        'To keep them safe: 1) open the menu and use "Backup data", 2) sign out and sign in again, 3) if anything is missing, use "Restore data".': 'ເພື່ອຄວາມປອດໄພ: 1) ເປີດເມນູ ແລະ ກົດ "ສຳຮອງຂໍ້ມູນ", 2) ອອກຈາກລະບົບ ແລ້ວເຂົ້າໃໝ່, 3) ຖ້າຂໍ້ມູນຂາດຫາຍ ໃຫ້ກົດ "ກູ້ຄືນຂໍ້ມູນ".'
+      });
+      Object.assign(TR.th, {
+        'server took too long': 'เซิร์ฟเวอร์ตอบช้าเกินไป', 'no internet connection': 'ไม่มีอินเทอร์เน็ต', 'server busy': 'เซิร์ฟเวอร์ไม่ว่าง',
+        'Session expired — please sign in again': 'เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่',
+        'Your login session has expired, so changes cannot be uploaded. They are still saved in this browser.': 'เซสชันการเข้าสู่ระบบหมดอายุ จึงอัปโหลดการเปลี่ยนแปลงไม่ได้ ข้อมูลยังบันทึกอยู่ในเบราว์เซอร์นี้',
+        'To keep them safe: 1) open the menu and use "Backup data", 2) sign out and sign in again, 3) if anything is missing, use "Restore data".': 'เพื่อความปลอดภัย: 1) เปิดเมนูแล้วกด "สำรองข้อมูล" 2) ออกจากระบบแล้วเข้าใหม่ 3) หากข้อมูลหาย ให้กด "กู้คืนข้อมูล"'
+      });
+      Object.assign(TR.zh, {
+        'server took too long': '服务器响应超时', 'no internet connection': '无网络连接', 'server busy': '服务器繁忙',
+        'Session expired — please sign in again': '登录已过期 — 请重新登录',
+        'Your login session has expired, so changes cannot be uploaded. They are still saved in this browser.': '登录会话已过期，无法上传更改。数据仍保存在此浏览器中。',
+        'To keep them safe: 1) open the menu and use "Backup data", 2) sign out and sign in again, 3) if anything is missing, use "Restore data".': '为确保安全：1）打开菜单并使用"备份数据"，2）退出并重新登录，3）如有缺失，使用"恢复数据"。'
       });
       Object.keys(TR).forEach(l => {
         if (!I18N[l]) return;
