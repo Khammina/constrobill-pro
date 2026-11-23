@@ -11374,7 +11374,7 @@
             </div>
             <div style="margin-top:10px">${metaTable(d, T, { k: `font-weight:700;color:${K}`, v: `color:${K}` })}</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:12px">
-              <div>${coLines(T, { c: K })}</div><div>${billTo(d, T, { c: K })}</div>
+              <div>${billTo(d, T, { c: K })}</div><div>${coLines(T, { c: K })}</div>
             </div>
             <div style="font-size:16px;font-weight:700;margin-top:14px">${headline(d)}</div>
             ${isInv(d) && hasPay(d.po) ? `<div style="margin-top:8px;font-size:11px;color:${d.color};text-decoration:underline">${t('Pay to')}: ${esc([d.po.bank, d.po.acnum].filter(Boolean).join(' · '))}</div>` : ''}
